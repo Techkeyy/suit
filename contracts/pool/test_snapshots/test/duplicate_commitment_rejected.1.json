@@ -65,6 +65,9 @@
                   "bytes": "0707070707070707070707070707070707070707070707070707070707070707"
                 },
                 {
+                  "i128": "1370000000"
+                },
+                {
                   "bytes": "01"
                 },
                 {
@@ -87,7 +90,7 @@
                       "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAITA4"
                     },
                     {
-                      "i128": "1000000000"
+                      "i128": "1370000000"
                     }
                   ]
                 }
@@ -187,6 +190,33 @@
                   },
                   "storage": null
                 }
+              }
+            }
+          },
+          "ext": "v0"
+        },
+        "live_until": 4095
+      },
+      {
+        "entry": {
+          "last_modified_ledger_seq": 0,
+          "data": {
+            "contract_data": {
+              "ext": "v0",
+              "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAITA4",
+              "key": {
+                "vec": [
+                  {
+                    "symbol": "AMT"
+                  },
+                  {
+                    "bytes": "0707070707070707070707070707070707070707070707070707070707070707"
+                  }
+                ]
+              },
+              "durability": "persistent",
+              "val": {
+                "i128": "1370000000"
               }
             }
           },
@@ -502,7 +532,7 @@
                       "symbol": "amount"
                     },
                     "val": {
-                      "i128": "1000000000"
+                      "i128": "1370000000"
                     }
                   },
                   {
@@ -554,7 +584,7 @@
                       "symbol": "amount"
                     },
                     "val": {
-                      "i128": "9000000000"
+                      "i128": "8630000000"
                     }
                   },
                   {

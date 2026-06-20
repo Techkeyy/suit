@@ -5,16 +5,13 @@
 // exercise a genuine deposit → withdraw cycle with nullifier protection.
 
 use soroban_sdk::testutils::Address as _;
-use soroban_sdk::{
-    contract, contractimpl, vec, Address, Bytes, BytesN, Env, Vec,
-};
+use soroban_sdk::{contract, contractimpl, vec, Address, Bytes, BytesN, Env, Vec};
 
 use crate::{PoolError, SuitPool, SuitPoolClient};
 
 const DEPTH: u32 = 16;
+const AMOUNT: i128 = 137_0000000; // 137 XLM — deliberately not the 100 default
 
-// Mock Groth16 verifier: returns true iff the first proof byte is 1. Lets the
-// test choose the verification outcome deterministically.
 #[contract]
 pub struct MockVerifier;
 
@@ -28,10 +25,9 @@ impl MockVerifier {
 struct Fixture {
     env: Env,
     pool: SuitPoolClient<'static>,
-    token_admin: soroban_sdk::token::StellarAssetClient<'static>,
     token: soroban_sdk::token::TokenClient<'static>,
     depositor: Address,
-    denom: i128,
+    minted: i128,
 }
 
 fn setup() -> Fixture {
@@ -48,13 +44,13 @@ fn setup() -> Fixture {
     let pool_id = env.register(SuitPool, ());
     let pool = SuitPoolClient::new(&env, &pool_id);
 
-    let denom: i128 = 100_0000000; // 100 units (7 decimals)
-    pool.initialize(&token_addr, &verifier, &denom);
+    pool.initialize(&token_addr, &verifier, &100_0000000i128);
 
     let depositor = Address::generate(&env);
-    token_admin.mint(&depositor, &(denom * 10));
+    let minted: i128 = 1000_0000000; // 1000 XLM
+    token_admin.mint(&depositor, &minted);
 
-    Fixture { env, pool, token_admin, token, depositor, denom }
+    Fixture { env, pool, token, depositor, minted }
 }
 
 fn valid_proof(env: &Env) -> Bytes {
@@ -63,8 +59,7 @@ fn valid_proof(env: &Env) -> Bytes {
 fn invalid_proof(env: &Env) -> Bytes {
     Bytes::from_array(env, &[0u8])
 }
-// Public-signals blob whose 3rd signal (offset 68..100) equals `commitment`,
-// matching the encoding the pool's commitment-binding check expects.
+// Public-signals blob whose 3rd signal (offset 68..100) equals `commitment`.
 fn pub_for(env: &Env, commitment: &BytesN<32>) -> Bytes {
     let mut v = [0u8; 100];
     v[3] = 3; // u32 BE: 3 public signals
@@ -73,14 +68,12 @@ fn pub_for(env: &Env, commitment: &BytesN<32>) -> Bytes {
 }
 
 // --- recompute the contract's keccak tree primitives in-test ---
-
 fn hash_pair(env: &Env, l: &BytesN<32>, r: &BytesN<32>) -> BytesN<32> {
     let mut buf = Bytes::new(env);
     buf.append(&Bytes::from_array(env, &l.to_array()));
     buf.append(&Bytes::from_array(env, &r.to_array()));
     env.crypto().keccak256(&buf).into()
 }
-
 fn zeros(env: &Env, level: u32) -> BytesN<32> {
     let seed = Bytes::from_array(env, b"SUIT_ZERO_LEAF_V1______________");
     let mut node: BytesN<32> = env.crypto().keccak256(&seed).into();
@@ -96,33 +89,16 @@ fn zeros(env: &Env, level: u32) -> BytesN<32> {
 fn deposit_requires_valid_proof() {
     let f = setup();
     let commitment = BytesN::from_array(&f.env, &[7u8; 32]);
-
-    // Invalid proof → rejected, no funds moved.
     let res = f.pool.try_deposit(
         &f.depositor,
         &commitment,
+        &AMOUNT,
         &invalid_proof(&f.env),
         &Bytes::new(&f.env),
     );
     assert_eq!(res, Err(Ok(PoolError::InvalidProof)));
     assert_eq!(f.pool.get_count(), 0);
-    assert_eq!(f.token.balance(&f.depositor), f.denom * 10);
-}
-
-#[test]
-fn deposit_inserts_commitment_and_pulls_funds() {
-    let f = setup();
-    let commitment = BytesN::from_array(&f.env, &[7u8; 32]);
-
-    let idx = f.pool.deposit(
-        &f.depositor,
-        &commitment,
-        &valid_proof(&f.env),
-        &pub_for(&f.env, &commitment),
-    );
-    assert_eq!(idx, 0);
-    assert_eq!(f.pool.get_count(), 1);
-    assert_eq!(f.token.balance(&f.depositor), f.denom * 9);
+    assert_eq!(f.token.balance(&f.depositor), f.minted);
 }
 
 #[test]
@@ -130,10 +106,10 @@ fn deposit_rejects_commitment_proof_mismatch() {
     let f = setup();
     let commitment = BytesN::from_array(&f.env, &[7u8; 32]);
     let other = BytesN::from_array(&f.env, &[9u8; 32]);
-    // valid proof, but public signals commit to a DIFFERENT value than the leaf
     let res = f.pool.try_deposit(
         &f.depositor,
         &commitment,
+        &AMOUNT,
         &valid_proof(&f.env),
         &pub_for(&f.env, &other),
     );
@@ -142,15 +118,46 @@ fn deposit_rejects_commitment_proof_mismatch() {
 }
 
 #[test]
-fn duplicate_commitment_rejected() {
+fn deposit_inserts_commitment_and_pulls_funds() {
     let f = setup();
     let commitment = BytesN::from_array(&f.env, &[7u8; 32]);
-    f.pool.deposit(&f.depositor, &commitment, &valid_proof(&f.env), &pub_for(&f.env, &commitment));
+    let idx = f.pool.deposit(
+        &f.depositor,
+        &commitment,
+        &AMOUNT,
+        &valid_proof(&f.env),
+        &pub_for(&f.env, &commitment),
+    );
+    assert_eq!(idx, 0);
+    assert_eq!(f.pool.get_count(), 1);
+    assert_eq!(f.token.balance(&f.depositor), f.minted - AMOUNT);
+}
+
+#[test]
+fn deposit_rejects_zero_amount() {
+    let f = setup();
+    let commitment = BytesN::from_array(&f.env, &[7u8; 32]);
     let res = f.pool.try_deposit(
         &f.depositor,
         &commitment,
+        &0i128,
         &valid_proof(&f.env),
-        &Bytes::new(&f.env),
+        &pub_for(&f.env, &commitment),
+    );
+    assert_eq!(res, Err(Ok(PoolError::InvalidAmount)));
+}
+
+#[test]
+fn duplicate_commitment_rejected() {
+    let f = setup();
+    let commitment = BytesN::from_array(&f.env, &[7u8; 32]);
+    f.pool.deposit(&f.depositor, &commitment, &AMOUNT, &valid_proof(&f.env), &pub_for(&f.env, &commitment));
+    let res = f.pool.try_deposit(
+        &f.depositor,
+        &commitment,
+        &AMOUNT,
+        &valid_proof(&f.env),
+        &pub_for(&f.env, &commitment),
     );
     assert_eq!(res, Err(Ok(PoolError::DuplicateCommitment)));
 }
@@ -159,12 +166,9 @@ fn duplicate_commitment_rejected() {
 fn full_deposit_withdraw_cycle() {
     let f = setup();
     let commitment = BytesN::from_array(&f.env, &[42u8; 32]);
-
-    f.pool.deposit(&f.depositor, &commitment, &valid_proof(&f.env), &pub_for(&f.env, &commitment));
+    f.pool.deposit(&f.depositor, &commitment, &AMOUNT, &valid_proof(&f.env), &pub_for(&f.env, &commitment));
     let root = f.pool.get_root();
 
-    // Single leaf at index 0: every sibling is the zero subtree, every
-    // direction bit is 0 (left).
     let mut path_elements: Vec<BytesN<32>> = Vec::new(&f.env);
     let mut path_indices: Vec<u32> = Vec::new(&f.env);
     for i in 0..DEPTH {
@@ -172,7 +176,7 @@ fn full_deposit_withdraw_cycle() {
         path_indices.push_back(0u32);
     }
 
-    // Sanity: recomputed root matches the contract's root.
+    // recomputed root matches the contract's root
     let mut node = commitment.clone();
     for i in 0..DEPTH {
         node = hash_pair(&f.env, &node, &path_elements.get(i).unwrap());
@@ -182,25 +186,13 @@ fn full_deposit_withdraw_cycle() {
     let recipient = Address::generate(&f.env);
     let nullifier = BytesN::from_array(&f.env, &[99u8; 32]);
 
-    f.pool.withdraw(
-        &recipient,
-        &nullifier,
-        &commitment,
-        &path_elements,
-        &path_indices,
-        &root,
-    );
-    assert_eq!(f.token.balance(&recipient), f.denom);
+    f.pool.withdraw(&recipient, &nullifier, &commitment, &path_elements, &path_indices, &root);
+    // recipient receives exactly the deposited amount (flexible, not a fixed denom)
+    assert_eq!(f.token.balance(&recipient), AMOUNT);
     assert!(f.pool.is_spent(&nullifier));
 
-    // Second withdraw with same nullifier → rejected.
     let res = f.pool.try_withdraw(
-        &recipient,
-        &nullifier,
-        &commitment,
-        &path_elements,
-        &path_indices,
-        &root,
+        &recipient, &nullifier, &commitment, &path_elements, &path_indices, &root,
     );
     assert_eq!(res, Err(Ok(PoolError::NullifierAlreadySpent)));
 }
@@ -209,7 +201,7 @@ fn full_deposit_withdraw_cycle() {
 fn withdraw_unknown_root_rejected() {
     let f = setup();
     let commitment = BytesN::from_array(&f.env, &[42u8; 32]);
-    f.pool.deposit(&f.depositor, &commitment, &valid_proof(&f.env), &pub_for(&f.env, &commitment));
+    f.pool.deposit(&f.depositor, &commitment, &AMOUNT, &valid_proof(&f.env), &pub_for(&f.env, &commitment));
 
     let bogus_root = BytesN::from_array(&f.env, &[1u8; 32]);
     let mut path_elements: Vec<BytesN<32>> = Vec::new(&f.env);
@@ -224,5 +216,5 @@ fn withdraw_unknown_root_rejected() {
         &recipient, &nullifier, &commitment, &path_elements, &path_indices, &bogus_root,
     );
     assert_eq!(res, Err(Ok(PoolError::UnknownRoot)));
-    let _ = vec![&f.env, 1u32]; // keep `vec` import used
+    let _ = vec![&f.env, 1u32];
 }

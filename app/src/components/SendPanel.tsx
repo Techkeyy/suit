@@ -4,16 +4,19 @@ import { deposit, verifyOnChain, generateRangeProof, CONFIG } from '../lib/suit'
 
 type Phase = 'idle' | 'working' | 'done' | 'error';
 
-const DENOM_XLM = Number(CONFIG.denomination) / 1e7;
+const MIN_XLM = Number(CONFIG.minAmount) / 1e7;
+const MAX_XLM = Number(CONFIG.maxAmount) / 1e7;
 
 export default function SendPanel() {
   const { address, openModal } = useWallet();
+  const [amount, setAmount] = useState('100');
   const [phase, setPhase] = useState<Phase>('idle');
   const [log, setLog] = useState<string[]>([]);
   const [txHash, setTxHash] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
   const push = (m: string) => setLog((l) => [...l, m]);
+  const toBase = (xlm: string) => BigInt(Math.round(parseFloat(xlm) * 1e7));
 
   async function handleShield() {
     if (!address) return openModal();
@@ -21,13 +24,17 @@ export default function SendPanel() {
     setTxHash(null);
     setLog([]);
     try {
+      const amt = toBase(amount);
+      if (amt < CONFIG.minAmount || amt > CONFIG.maxAmount) {
+        throw new Error(`Amount must be between ${MIN_XLM} and ${MAX_XLM} XLM`);
+      }
       setPhase('working');
       push('Generating Groth16 proof in your browser…');
       push('Submitting deposit — the pool verifies the proof on-chain before accepting funds…');
-      const res = await deposit(address);
+      const res = await deposit(address, amt);
       setTxHash(res.txHash);
-      push(`Shielded. Commitment inserted at leaf ${res.note.leafIndex}.`);
-      push('Go to Withdraw to send it on to any address — privately.');
+      push(`Shielded ${amount} XLM. Commitment inserted at leaf ${res.note.leafIndex}.`);
+      push('Go to Withdraw to send it on to any address.');
       setPhase('done');
     } catch (e: any) {
       setErr(e.message || String(e));
@@ -40,9 +47,10 @@ export default function SendPanel() {
     setErr(null);
     setLog([]);
     try {
+      const amt = toBase(amount || '100');
       setPhase('working');
       push('Generating proof…');
-      const bundle = await generateRangeProof(CONFIG.denomination, 12345n);
+      const bundle = await generateRangeProof(amt, 12345n);
       push('Calling verifier.verify on-chain (read-only)…');
       const ok = await verifyOnChain(bundle.proofBytes, bundle.publicBytes);
       push(`On-chain verifier returned: ${ok ? 'true ✓' : 'false ✗'}`);
@@ -62,23 +70,21 @@ export default function SendPanel() {
           Shield funds <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
         </div>
 
-        {/* fixed denomination */}
-        <div style={{ marginBottom: 8 }}>
-          <div className="eyebrow" style={{ marginBottom: 10 }}>Denomination</div>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
-            <span className="num" style={{ fontSize: 48, fontWeight: 600, color: 'var(--text-1)', lineHeight: 1 }}>{DENOM_XLM}</span>
-            <span className="num" style={{ fontSize: 13, letterSpacing: '0.15em', color: 'var(--text-3)', textTransform: 'uppercase' }}>XLM</span>
-            <span className="num" style={{ marginLeft: 'auto', fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--accent)', background: 'var(--accent-dim)', border: '1px solid var(--accent-border)', padding: '4px 10px', borderRadius: 3 }}>Fixed</span>
+        <div style={{ marginBottom: 6 }}>
+          <div className="eyebrow" style={{ marginBottom: 10 }}>Amount to shield</div>
+          <div style={{ position: 'relative' }}>
+            <input className="num" value={amount} onChange={e => setAmount(e.target.value)} placeholder="100" type="number"
+              style={{ width: '100%', background: 'transparent', border: 'none', borderBottom: '1px solid var(--border-strong)', color: 'var(--text-1)', fontSize: 44, fontWeight: 500, padding: '6px 0 12px' }} />
+            <span className="num" style={{ position: 'absolute', right: 0, bottom: 16, fontSize: 13, letterSpacing: '0.15em', color: 'var(--text-3)', textTransform: 'uppercase' }}>XLM</span>
           </div>
         </div>
-        <p style={{ fontSize: 12, color: 'var(--text-3)', lineHeight: 1.6, margin: '14px 0 24px' }}>
-          A fixed denomination keeps every deposit identical on-chain, so amounts can't be told apart.
-          Your secret note is generated locally and stored in this browser.
+        <p style={{ fontSize: 12, color: 'var(--text-3)', lineHeight: 1.6, margin: '12px 0 22px' }}>
+          Any amount from {MIN_XLM} to {MAX_XLM} XLM. A Groth16 proof attests the amount is in range and is verified on-chain before the pool accepts it.
         </p>
 
         <div style={{ display: 'flex', gap: 10, marginBottom: 18 }}>
           <button className="btn btn-primary" style={{ flex: 2 }} onClick={handleShield} disabled={busy}>
-            {!address ? 'Connect wallet' : busy ? 'Working…' : `Shield ${DENOM_XLM} XLM`}
+            {!address ? 'Connect wallet' : busy ? 'Working…' : `Shield ${amount || ''} XLM`}
           </button>
           <button className="btn btn-ghost" style={{ flex: 1 }} onClick={handleVerifyPreview} disabled={busy}>
             Verify proof
@@ -108,7 +114,7 @@ export default function SendPanel() {
           How it works <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
         </div>
         {[
-          { step: '01', title: 'Shield a fixed amount', desc: 'You deposit a fixed 100 XLM. Your browser generates a secret note and a Groth16 proof locally.' },
+          { step: '01', title: 'Enter an amount', desc: 'Your browser generates a secret note and a Groth16 proof locally, attesting the amount is within policy bounds.' },
           { step: '02', title: 'Pool verifies on-chain', desc: 'The pool cross-calls the verifier; the BLS12-381 pairing check must pass — and the commitment must match the proof — before funds are accepted.' },
           { step: '03', title: 'Withdraw to anyone', desc: 'Later, withdraw your shielded note to any Stellar address. The funds leave the shared pool, not your account.' },
         ].map(item => (

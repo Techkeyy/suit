@@ -65,6 +65,8 @@ pub enum PoolError {
     MerklePathInvalid = 8,
     BadPathLength = 9,
     CommitmentMismatch = 10,
+    InvalidAmount = 11,
+    UnknownNote = 12,
 }
 
 #[contracttype]
@@ -132,17 +134,23 @@ impl SuitPool {
         Ok(())
     }
 
-    /// Deposit the fixed denomination into the pool. Gated by a real on-chain
-    /// Groth16 proof verified via cross-contract call.
+    /// Deposit `amount` into the pool. Gated by a real on-chain Groth16 proof
+    /// verified via cross-contract call. The amount is recorded per-commitment
+    /// and paid back verbatim on withdrawal.
     pub fn deposit(
         env: Env,
         depositor: Address,
         commitment: BytesN<32>,
+        amount: i128,
         proof_bytes: Bytes,
         pub_signals_bytes: Bytes,
     ) -> Result<u32, PoolError> {
         require_init(&env)?;
         depositor.require_auth();
+
+        if amount <= 0 {
+            return Err(PoolError::InvalidAmount);
+        }
 
         // Reject duplicate commitments.
         let comm_key = (symbol_short!("COMM"), commitment.clone());
@@ -170,18 +178,21 @@ impl SuitPool {
             return Err(PoolError::CommitmentMismatch);
         }
 
-        // Pull the fixed denomination from the depositor into the pool.
+        // Pull `amount` from the depositor into the pool.
         let token_addr: Address = env.storage().instance().get(&TOKEN).unwrap();
-        let denom: i128 = env.storage().instance().get(&DENOM).unwrap();
         token::Client::new(&env, &token_addr).transfer(
             &depositor,
             &env.current_contract_address(),
-            &denom,
+            &amount,
         );
 
-        // Insert the commitment into the Merkle tree.
+        // Insert the commitment into the Merkle tree, and record the amount so
+        // withdrawal pays back exactly what was deposited for this note.
         let leaf_index = insert_leaf(&env, &commitment)?;
         env.storage().persistent().set(&comm_key, &leaf_index);
+        env.storage()
+            .persistent()
+            .set(&(symbol_short!("AMT"), commitment.clone()), &amount);
 
         let count: u32 = env.storage().instance().get(&COUNT).unwrap();
         env.storage().instance().set(&COUNT, &(count + 1));
@@ -228,7 +239,7 @@ impl SuitPool {
         }
 
         // Recompute the root from the supplied Merkle path.
-        let mut node = leaf;
+        let mut node = leaf.clone();
         for i in 0..DEPTH {
             let sibling = path_elements.get(i).unwrap();
             let is_right = path_indices.get(i).unwrap() == 1;
@@ -242,15 +253,21 @@ impl SuitPool {
             return Err(PoolError::MerklePathInvalid);
         }
 
+        // Look up the amount deposited for this note and pay it back.
+        let amount: i128 = env
+            .storage()
+            .persistent()
+            .get(&(symbol_short!("AMT"), leaf.clone()))
+            .ok_or(PoolError::UnknownNote)?;
+
         // Burn the nullifier and pay out.
         env.storage().persistent().set(&null_key, &true);
 
         let token_addr: Address = env.storage().instance().get(&TOKEN).unwrap();
-        let denom: i128 = env.storage().instance().get(&DENOM).unwrap();
         token::Client::new(&env, &token_addr).transfer(
             &env.current_contract_address(),
             &recipient,
-            &denom,
+            &amount,
         );
 
         env.events().publish(

@@ -4,7 +4,7 @@ import { withdraw, getNotes, CONFIG, StoredNote } from '../lib/suit';
 
 type Phase = 'idle' | 'working' | 'done' | 'error';
 
-const DENOM_XLM = Number(CONFIG.denomination) / 1e7;
+const toXlm = (base: string) => (Number(BigInt(base)) / 1e7).toLocaleString();
 
 export default function ReceivePanel() {
   const { address, openModal } = useWallet();
@@ -52,7 +52,7 @@ export default function ReceivePanel() {
         <div className="eyebrow" style={{ marginBottom: 10 }}>Your shielded notes</div>
         {unspent.length === 0 ? (
           <div style={{ fontSize: 13, color: 'var(--text-3)', padding: '16px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8 }}>
-            None on this device. Shield {DENOM_XLM} XLM first.
+            None on this device. Shield funds first.
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -62,7 +62,7 @@ export default function ReceivePanel() {
                 <button key={n.leafHex} onClick={() => setSelected(n.leafHex)}
                   style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', textAlign: 'left', padding: '14px 16px', background: active ? 'var(--accent-dim)' : 'var(--surface)', border: `1px solid ${active ? 'var(--accent-border)' : 'var(--border)'}`, borderRadius: 8, cursor: 'pointer' }}>
                   <span>
-                    <span className="num" style={{ fontSize: 14, color: 'var(--text-1)', fontWeight: 600 }}>{DENOM_XLM} XLM</span>
+                    <span className="num" style={{ fontSize: 14, color: 'var(--text-1)', fontWeight: 600 }}>{toXlm(n.amount)} XLM</span>
                     <span className="num" style={{ fontSize: 11, color: 'var(--text-3)', marginLeft: 10 }}>leaf {n.leafIndex} · {n.leafHex.slice(0, 10)}…</span>
                   </span>
                   <span className="num" style={{ width: 14, height: 14, borderRadius: '50%', border: `1px solid ${active ? 'var(--accent)' : 'var(--border-strong)'}`, background: active ? 'var(--accent)' : 'transparent' }} />
@@ -80,7 +80,7 @@ export default function ReceivePanel() {
       </div>
 
       <button className="btn btn-primary" style={{ width: '100%' }} onClick={handleWithdraw} disabled={phase === 'working' || (!!address && unspent.length === 0)}>
-        {!address ? 'Connect wallet' : phase === 'working' ? 'Building proof & withdrawing…' : `Withdraw ${DENOM_XLM} XLM`}
+        {!address ? 'Connect wallet' : phase === 'working' ? 'Withdrawing…' : activeNote ? `Withdraw ${toXlm(activeNote.amount)} XLM` : 'Withdraw'}
       </button>
 
       {err && (

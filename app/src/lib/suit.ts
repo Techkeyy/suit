@@ -27,7 +27,7 @@ import { keccak256 } from 'js-sha3';
 export const CONFIG = {
   rpcUrl: 'https://soroban-testnet.stellar.org',
   network: Networks.TESTNET,
-  poolId: 'CAQ2CBPLAUGW5DY34V3TRB47OYX4NQTYGPYCHDXLU6PKWK3JAX6VCRN7',
+  poolId: 'CBTU3EAAQPYBSM7LCYMP2Q6AVBXSVGZWDBJNWBCER35YCKDF5J2HWET6',
   verifierId: 'CA2W26LBXZ7FZWKKPW4NHTO52AUYWBAT47S2QMMDDEWORFG4RYQKAWIV',
   tokenId: 'CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC',
   denomination: 1_000_000_000n, // 100 XLM (7 decimals)
@@ -324,9 +324,8 @@ export interface DepositResult {
   note: Note;
 }
 
-/** Shield the fixed denomination: generate a proof, then deposit (ZK-gated). */
-export async function deposit(address: string): Promise<DepositResult> {
-  const amount = CONFIG.denomination;
+/** Shield `amount` (base units): generate a proof, then deposit (ZK-gated). */
+export async function deposit(address: string, amount: bigint): Promise<DepositResult> {
   const secret = randomSecret();
   const note = deriveNote(amount, secret);
   const bundle = await generateRangeProof(amount, secret);
@@ -336,6 +335,7 @@ export async function deposit(address: string): Promise<DepositResult> {
     'deposit',
     new Address(address).toScVal(),
     scvBytes(hexToBytes(note.leafHex)),
+    nativeToScVal(amount, { type: 'i128' }),
     scvBytes(bundle.proofBytes),
     scvBytes(bundle.publicBytes)
   );

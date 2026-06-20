@@ -51,9 +51,9 @@ export default function Landing({ onLaunch }: Props) {
           </h1>
 
           <p style={{ fontSize: 16, color: "var(--text-2)", lineHeight: 1.7, maxWidth: 440, marginBottom: 40 }}>
-            A shielded payment pool on Stellar where every deposit is gated by a
-            real zero-knowledge proof — verified on-chain. The amount is proven
-            valid without ever appearing on the ledger.
+            A payment pool on Stellar where every deposit is gated by a real
+            zero-knowledge proof — generated in your browser and verified
+            on-chain. No valid proof, no deposit.
           </p>
 
           <div style={{ display: "flex", gap: 14, marginBottom: 52 }}>
@@ -82,8 +82,8 @@ export default function Landing({ onLaunch }: Props) {
       {/* ---------- stats ---------- */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", borderTop: "1px solid var(--border)", borderBottom: "1px solid var(--border)" }}>
         {[
-          { num: "0", label: "Proven amount on-chain", accent: false },
-          { num: "1", label: "Live ZK system · Groth16", accent: true },
+          { num: "Groth16", label: "ZK system", accent: false, small: true },
+          { num: "On-chain", label: "Proof verified", accent: true, small: true },
           { num: "BLS12-381", label: "Pairing curve", accent: false, small: true },
           { num: "100%", label: "Non-custodial", accent: false },
         ].map((s, i) => (
@@ -100,7 +100,7 @@ export default function Landing({ onLaunch }: Props) {
         <h2 style={{ fontFamily: "var(--font-serif)", fontSize: 46, fontWeight: 300, margin: "16px 0 64px" }}>Four steps to a private, provable payment.</h2>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 1, background: "var(--border)" }}>
           {[
-            { step: "01", title: "Enter an amount", desc: "It is used only as a private input to the Circom circuit. It never appears on the Stellar ledger." },
+            { step: "01", title: "Enter an amount", desc: "Your browser turns it into a Circom/Groth16 proof locally, attesting the amount is within policy bounds." },
             { step: "02", title: "Prove in your browser", desc: "A Circom/Groth16 proof over BLS12-381 is generated locally, proving the amount is within policy bounds — without revealing it." },
             { step: "03", title: "Pool verifies on-chain", desc: "The pool cross-calls the verifier; the BLS12-381 pairing check must pass before the deposit is accepted. No valid proof, no deposit." },
             { step: "04", title: "Receiver withdraws", desc: "The receiver withdraws from the pool with a nullifier; double-spends are rejected on-chain. Full unlinkability is on the roadmap." },
