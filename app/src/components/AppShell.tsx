@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import SendPanel from './SendPanel';
 import ReceivePanel from './ReceivePanel';
 import ReceiptsPanel from './ReceiptsPanel';
+import WalletButton from './WalletButton';
 import { useWallet } from '../lib/wallet';
 
 type Tab = 'send' | 'receive' | 'receipts';
@@ -12,8 +13,7 @@ interface Props {
 
 export default function AppShell({ onBack }: Props) {
   const [tab, setTab] = useState<Tab>('send');
-  const { address, connect, connecting, error } = useWallet();
-  const short = (a: string) => `${a.slice(0, 4)}…${a.slice(-4)}`;
+  const { error } = useWallet();
 
   const navStyle: React.CSSProperties = {
     display: 'flex',
@@ -67,39 +67,13 @@ export default function AppShell({ onBack }: Props) {
           ))}
         </div>
 
-        {address ? (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', padding: '6px 14px', borderRadius: 4 }}>
-            <div style={{ width: 7, height: 7, background: '#4ade80', borderRadius: '50%' }} />
-            <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.65)', fontFamily: 'monospace' }}>{short(address)}</span>
-          </div>
-        ) : (
-          <button onClick={connect} disabled={connecting}
-            title={error || ''}
-            style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#fff', color: '#000', border: 'none', padding: '8px 16px', borderRadius: 4, fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer', fontWeight: 500 }}>
-            {connecting ? 'Connecting…' : 'Connect Freighter'}
-          </button>
-        )}
+        <WalletButton />
       </nav>
 
       <div style={{ padding: 28 }}>
         {tab === 'send' && <SendPanel />}
         {tab === 'receive' && <ReceivePanel />}
         {tab === 'receipts' && <ReceiptsPanel />}
-      </div>
-
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 28px', borderTop: '1px solid rgba(255,255,255,0.06)', background: '#0a0a0a' }}>
-        {[
-          { num: 'Groth16', label: 'ZK system' },
-          { num: 'Testnet', label: 'Network' },
-          { num: 'On-chain', label: 'Proof verified' },
-          { num: 'BLS12-381', label: 'Curve' },
-          { num: '∞', label: 'Auditable' },
-        ].map(s => (
-          <div key={s.label} style={{ textAlign: 'center' }}>
-            <div className="num" style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-1)' }}>{s.num}</div>
-            <div className="eyebrow" style={{ marginTop: 4 }}>{s.label}</div>
-          </div>
-        ))}
       </div>
     </div>
   );
