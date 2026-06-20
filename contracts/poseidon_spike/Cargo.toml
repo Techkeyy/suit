@@ -1,0 +1,17 @@
+[package]
+name = "poseidon-spike"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["rlib"]
+
+# Spike only: confirm Stellar's host Poseidon (CAP-0075, hazmat) reproduces
+# circomlib's BN254 Poseidon when fed circomlib's constants. Gates the whole
+# unlinkable-withdrawal build.
+
+[dependencies]
+soroban-sdk = { version = "26", features = ["hazmat-crypto"] }
+
+[dev-dependencies]
+soroban-sdk = { version = "26", features = ["testutils", "hazmat-crypto"] }
