@@ -23,7 +23,7 @@ export default function ReceiptsPanel() {
           { k: 'On-chain amounts', v: '0 visible' },
         ].map((s) => (
           <div key={s.k} style={{ flex: 1, background: '#0a0a0a', padding: 18, textAlign: 'center' }}>
-            <div style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: 26, fontWeight: 300 }}>{s.v}</div>
+            <div className="num" style={{ fontSize: 24, fontWeight: 600 }}>{s.v}</div>
             <div style={{ fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.25)', marginTop: 4 }}>{s.k}</div>
           </div>
         ))}

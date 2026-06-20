@@ -4,155 +4,176 @@ interface Props {
   onLaunch: () => void;
 }
 
-export default function Landing({ onLaunch }: Props) {
-  return (
-    <div style={{ background: "#000", fontFamily: "Inter, sans-serif", color: "#fff" }}>
+const POOL = "https://stellar.expert/explorer/testnet/contract/CC3YJSNMD22EE4ZLJI2SN7D566TIIHDMI6NZLE3MREARMBKUQDSWBHXC";
+const VERIFIER = "https://stellar.expert/explorer/testnet/contract/CA2W26LBXZ7FZWKKPW4NHTO52AUYWBAT47S2QMMDDEWORFG4RYQKAWIV";
 
-      <nav style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "22px 48px", position: "fixed" as const, top: 0, left: 0, right: 0, zIndex: 100, background: "rgba(0,0,0,0.9)", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
-        <div style={{ fontFamily: "Cormorant Garamond, serif", fontSize: 19, fontWeight: 700, letterSpacing: "0.28em", textTransform: "uppercase" as const, color: "#fff" }}>
-          SUIT<span style={{ color: "rgba(255,255,255,0.3)", fontWeight: 300 }}> Protocol</span>
+const scrollTo = (id: string) => () =>
+  document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
+
+export default function Landing({ onLaunch }: Props) {
+  const eyebrow: React.CSSProperties = { display: "block" };
+
+  return (
+    <div style={{ background: "var(--bg)", fontFamily: "var(--font-sans)", color: "var(--text-1)" }}>
+
+      {/* ---------- nav ---------- */}
+      <nav style={{ display: "flex", justifyContent: "space-between", alignItems: "center", height: "var(--nav-h)", padding: "0 48px", position: "fixed", top: 0, left: 0, right: 0, zIndex: 100, background: "rgba(11,11,14,0.82)", backdropFilter: "blur(12px)", borderBottom: "1px solid var(--border)" }}>
+        <div style={{ fontFamily: "var(--font-serif)", fontSize: 19, fontWeight: 700, letterSpacing: "0.28em", textTransform: "uppercase" }}>
+          SUIT<span style={{ color: "var(--text-3)", fontWeight: 300 }}> Protocol</span>
         </div>
-        <div style={{ display: "flex", gap: 32, alignItems: "center" }}>
-          {["How it works", "Why SUIT", "For business"].map(l => (
-            <span key={l} style={{ fontSize: 10, letterSpacing: "0.18em", color: "rgba(255,255,255,0.42)", textTransform: "uppercase" as const, cursor: "pointer" }}>{l}</span>
-          ))}
-          <button onClick={onLaunch} style={{ fontSize: 10, letterSpacing: "0.14em", textTransform: "uppercase" as const, color: "#000", background: "#fff", padding: "9px 24px", border: "none", cursor: "pointer", fontWeight: 500 }}>Launch app</button>
+        <div style={{ display: "flex", gap: 30, alignItems: "center" }}>
+          <button className="navlink" onClick={scrollTo("how")}>How it works</button>
+          <button className="navlink" onClick={scrollTo("why")}>Why SUIT</button>
+          <button className="navlink" onClick={scrollTo("stack")}>ZK stack</button>
+          <button className="btn btn-primary" onClick={onLaunch}>Launch app</button>
         </div>
       </nav>
 
-      <div style={{ height: "100vh", position: "relative" as const, overflow: "hidden" }}>
-
-        <div style={{ position: "absolute" as const, top: 0, right: 0, width: "58%", height: "100%", zIndex: 1 }}>
-          <img
-            src="/suit_hero.jpg"
-            alt=""
-            style={{
-              position: "absolute" as const,
-              top: 0,
-              left: 0,
-              width: "100%",
-              height: "100%",
-              objectFit: "cover" as const,
-              objectPosition: "50% 35%",
-              display: "block",
-              filter: "contrast(1.08) brightness(0.75)",
-            }}
-          />
-          <div style={{ position: "absolute" as const, top: 0, left: 0, width: "55%", height: "100%", background: "linear-gradient(to right, #000 0%, transparent 100%)", zIndex: 2 }} />
-          <div style={{ position: "absolute" as const, bottom: 0, left: 0, width: "100%", height: "30%", background: "linear-gradient(to bottom, transparent, #000)", zIndex: 2 }} />
+      {/* ---------- hero ---------- */}
+      <div style={{ minHeight: "100vh", position: "relative", overflow: "hidden", display: "flex", alignItems: "center" }}>
+        <div style={{ position: "absolute", top: 0, right: 0, width: "58%", height: "100%", zIndex: 1 }}>
+          <img src="/suit_hero.jpg" alt="" style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", objectFit: "cover", objectPosition: "50% 35%", filter: "contrast(1.05) brightness(0.7) saturate(0.9)" }} />
+          <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to right, var(--bg) 8%, transparent 70%)", zIndex: 2 }} />
+          <div style={{ position: "absolute", bottom: 0, left: 0, width: "100%", height: "35%", background: "linear-gradient(to bottom, transparent, var(--bg))", zIndex: 2 }} />
         </div>
 
-        <div style={{ position: "absolute" as const, top: 0, left: 0, width: "50%", height: "100%", zIndex: 10, display: "flex", flexDirection: "column" as const, justifyContent: "center", padding: "80px 0 0 48px" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 32 }}>
-            <div style={{ width: 32, height: 1, background: "rgba(255,255,255,0.25)" }} />
-            <span style={{ fontSize: 9, letterSpacing: "0.3em", color: "rgba(255,255,255,0.38)", textTransform: "uppercase" as const }}>Zero-knowledge · Built on Stellar</span>
-          </div>
-          <div style={{ fontFamily: "Cormorant Garamond, serif", fontSize: 76, fontWeight: 300, lineHeight: 1.02, marginBottom: 24, color: "#fff" }}>
+        <div style={{ position: "relative", zIndex: 10, width: "52%", padding: "var(--nav-h) 0 0 48px" }}>
+          {/* live status — credibility, links to chain */}
+          <a href={VERIFIER} target="_blank" rel="noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 9, padding: "6px 14px", borderRadius: 999, border: "1px solid var(--accent-border)", background: "var(--accent-dim)", marginBottom: 30, textDecoration: "none" }}>
+            <span style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--accent)", boxShadow: "0 0 10px var(--accent)" }} />
+            <span className="num" style={{ fontSize: 10, letterSpacing: "0.16em", textTransform: "uppercase", color: "var(--accent)" }}>Live on Stellar testnet</span>
+          </a>
+
+          <h1 style={{ fontFamily: "var(--font-serif)", fontSize: 74, fontWeight: 300, lineHeight: 1.04, marginBottom: 24 }}>
             Your payments.<br />
-            <em style={{ fontStyle: "italic", color: "rgba(255,255,255,0.35)" }}>Their</em> business?<br />
-            <strong style={{ fontWeight: 700, color: "#fff" }}>Never.</strong>
-          </div>
-          <p style={{ fontSize: 11, letterSpacing: "0.14em", color: "rgba(255,255,255,0.35)", textTransform: "uppercase" as const, lineHeight: 2.2, marginBottom: 44 }}>
-            Shielded commitments · Proven amounts<br />On-chain ZK verification · Non-custodial
+            <em style={{ fontStyle: "italic", color: "var(--text-3)" }}>Their</em> business?<br />
+            <strong style={{ fontWeight: 700 }}>Never.</strong>
+          </h1>
+
+          <p style={{ fontSize: 16, color: "var(--text-2)", lineHeight: 1.7, maxWidth: 440, marginBottom: 40 }}>
+            A shielded payment pool on Stellar where every deposit is gated by a
+            real zero-knowledge proof — verified on-chain. The amount is proven
+            valid without ever appearing on the ledger.
           </p>
-          <div style={{ display: "flex", gap: 14, marginBottom: 48 }}>
-            <button onClick={onLaunch} style={{ fontSize: 11, letterSpacing: "0.2em", textTransform: "uppercase" as const, color: "#000", background: "#fff", border: "none", padding: "15px 40px", cursor: "pointer", fontWeight: 500 }}>Send privately</button>
-            <button onClick={onLaunch} style={{ fontSize: 11, letterSpacing: "0.2em", textTransform: "uppercase" as const, color: "rgba(255,255,255,0.5)", background: "transparent", border: "1px solid rgba(255,255,255,0.2)", padding: "15px 40px", cursor: "pointer" }}>Receive funds</button>
+
+          <div style={{ display: "flex", gap: 14, marginBottom: 52 }}>
+            <button className="btn btn-primary" style={{ padding: "15px 36px" }} onClick={onLaunch}>Open the app</button>
+            <button className="btn btn-ghost" style={{ padding: "15px 36px" }} onClick={scrollTo("how")}>See how it works</button>
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, maxWidth: 460 }}>
-            {["Range proof", "On-chain verify", "Shielded pool", "Unlinkable (roadmap)"].map((label, i) => (
-              <React.Fragment key={label}>
-                <div style={{ width: 5, height: 5, borderRadius: "50%", background: i < 3 ? "rgba(255,255,255,0.7)" : "rgba(255,255,255,0.18)", flexShrink: 0 }} />
-                <span style={{ fontSize: 9, letterSpacing: "0.12em", textTransform: "uppercase" as const, color: i < 3 ? "rgba(255,255,255,0.45)" : "rgba(255,255,255,0.2)", whiteSpace: "nowrap" as const }}>{label}</span>
-                {i < 3 && <div style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.07)" }} />}
+
+          {/* proof pipeline indicator */}
+          <div style={{ display: "flex", alignItems: "center", gap: 10, maxWidth: 520 }}>
+            {[
+              { label: "Range proof", live: true },
+              { label: "On-chain verify", live: true },
+              { label: "Shielded pool", live: true },
+              { label: "Unlinkable", live: false },
+            ].map((s, i, arr) => (
+              <React.Fragment key={s.label}>
+                <div style={{ width: 6, height: 6, borderRadius: "50%", background: s.live ? "var(--accent)" : "var(--border-strong)", flexShrink: 0 }} />
+                <span className="num" style={{ fontSize: 9, letterSpacing: "0.1em", textTransform: "uppercase", color: s.live ? "var(--text-2)" : "var(--text-3)", whiteSpace: "nowrap" }}>{s.label}{!s.live && " ·"}{!s.live && <span style={{ color: "var(--text-3)" }}> roadmap</span>}</span>
+                {i < arr.length - 1 && <div style={{ flex: 1, height: 1, background: "var(--border)" }} />}
               </React.Fragment>
             ))}
           </div>
         </div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", borderTop: "1px solid rgba(255,255,255,0.08)", borderBottom: "1px solid rgba(255,255,255,0.08)", background: "#000" }}>
-        {[{ num: "0", label: "Proven amount on-chain" }, { num: "1", label: "Live ZK system (Groth16)" }, { num: "BLS12-381", label: "Verified on testnet" }, { num: "100%", label: "Non-custodial" }].map((s, i) => (
-          <div key={s.label} style={{ padding: "28px", borderRight: i < 3 ? "1px solid rgba(255,255,255,0.08)" : "none", textAlign: "center" as const }}>
-            <div style={{ fontFamily: "Cormorant Garamond, serif", fontSize: 32, fontWeight: 300, color: "#fff" }}>{s.num}</div>
-            <div style={{ fontSize: 9, letterSpacing: "0.2em", textTransform: "uppercase" as const, color: "rgba(255,255,255,0.28)", marginTop: 8 }}>{s.label}</div>
+      {/* ---------- stats ---------- */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", borderTop: "1px solid var(--border)", borderBottom: "1px solid var(--border)" }}>
+        {[
+          { num: "0", label: "Proven amount on-chain", accent: false },
+          { num: "1", label: "Live ZK system · Groth16", accent: true },
+          { num: "BLS12-381", label: "Pairing curve", accent: false, small: true },
+          { num: "100%", label: "Non-custodial", accent: false },
+        ].map((s, i) => (
+          <div key={s.label} style={{ padding: "34px 28px", borderRight: i < 3 ? "1px solid var(--border)" : "none", textAlign: "center" }}>
+            <div className="num" style={{ fontSize: s.small ? 21 : 38, fontWeight: 600, color: s.accent ? "var(--accent)" : "var(--text-1)", whiteSpace: "nowrap" }}>{s.num}</div>
+            <div className="eyebrow" style={{ marginTop: 10 }}>{s.label}</div>
           </div>
         ))}
       </div>
 
-      <div style={{ padding: "120px 48px", background: "#000" }}>
-        <div style={{ fontSize: 9, letterSpacing: "0.3em", color: "rgba(255,255,255,0.3)", textTransform: "uppercase" as const, marginBottom: 16 }}>How it works</div>
-        <div style={{ fontFamily: "Cormorant Garamond, serif", fontSize: 48, fontWeight: 300, color: "#fff", marginBottom: 64 }}>Four steps to complete financial privacy.</div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 1, background: "rgba(255,255,255,0.07)" }}>
+      {/* ---------- how it works ---------- */}
+      <section id="how" style={{ padding: "120px 48px" }}>
+        <span className="eyebrow" style={eyebrow}>How it works</span>
+        <h2 style={{ fontFamily: "var(--font-serif)", fontSize: 46, fontWeight: 300, margin: "16px 0 64px" }}>Four steps to a private, provable payment.</h2>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 1, background: "var(--border)" }}>
           {[
-            { step: "01", title: "Enter amount", desc: "Your amount stays entirely on your device. Used as a private ZK input. Never touches the Stellar ledger." },
-            { step: "02", title: "Proof generated in-browser", desc: "A Circom/Groth16 range proof (BLS12-381) is generated locally, proving the amount is within policy bounds without revealing it." },
-            { step: "03", title: "Pool verifies on-chain", desc: "A commitment and the proof go to Stellar. The pool runs a real BLS12-381 pairing check before accepting the deposit — no valid proof, no deposit." },
-            { step: "04", title: "Receiver withdraws", desc: "The receiver withdraws from the shared pool using a nullifier; double-spends are rejected on-chain. Full deposit↔withdrawal unlinkability is on the roadmap." },
+            { step: "01", title: "Enter an amount", desc: "It is used only as a private input to the Circom circuit. It never appears on the Stellar ledger." },
+            { step: "02", title: "Prove in your browser", desc: "A Circom/Groth16 proof over BLS12-381 is generated locally, proving the amount is within policy bounds — without revealing it." },
+            { step: "03", title: "Pool verifies on-chain", desc: "The pool cross-calls the verifier; the BLS12-381 pairing check must pass before the deposit is accepted. No valid proof, no deposit." },
+            { step: "04", title: "Receiver withdraws", desc: "The receiver withdraws from the pool with a nullifier; double-spends are rejected on-chain. Full unlinkability is on the roadmap." },
           ].map(item => (
-            <div key={item.step} style={{ background: "#0a0a0a", padding: "40px 32px" }}>
-              <div style={{ fontFamily: "Cormorant Garamond, serif", fontSize: 48, color: "rgba(255,255,255,0.08)", marginBottom: 24 }}>{item.step}</div>
-              <div style={{ fontSize: 11, letterSpacing: "0.12em", textTransform: "uppercase" as const, color: "rgba(255,255,255,0.7)", marginBottom: 14 }}>{item.title}</div>
-              <div style={{ fontSize: 13, color: "rgba(255,255,255,0.32)", lineHeight: 1.8 }}>{item.desc}</div>
+            <div key={item.step} style={{ background: "var(--bg-2)", padding: "40px 30px" }}>
+              <div className="num" style={{ fontSize: 40, color: "var(--border-strong)", marginBottom: 22, fontWeight: 600 }}>{item.step}</div>
+              <div className="eyebrow" style={{ color: "var(--text-1)", marginBottom: 14, letterSpacing: "0.12em" }}>{item.title}</div>
+              <div style={{ fontSize: 13, color: "var(--text-2)", lineHeight: 1.8 }}>{item.desc}</div>
             </div>
           ))}
         </div>
-      </div>
+      </section>
 
-      <div style={{ padding: "120px 48px", background: "#050505", borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-        <div style={{ fontSize: 9, letterSpacing: "0.3em", color: "rgba(255,255,255,0.3)", textTransform: "uppercase" as const, marginBottom: 16 }}>Why we built SUIT</div>
-        <div style={{ fontFamily: "Cormorant Garamond, serif", fontSize: 48, fontWeight: 300, color: "#fff", marginBottom: 32 }}>Every transaction you make is being watched.</div>
+      {/* ---------- why ---------- */}
+      <section id="why" style={{ padding: "120px 48px", background: "var(--bg-2)", borderTop: "1px solid var(--border)" }}>
+        <span className="eyebrow" style={eyebrow}>Why we built SUIT</span>
+        <h2 style={{ fontFamily: "var(--font-serif)", fontSize: 46, fontWeight: 300, margin: "16px 0 32px", maxWidth: 760 }}>Every transaction you make is being watched.</h2>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 80, maxWidth: 1100 }}>
           <div>
-            <p style={{ fontSize: 14, color: "rgba(255,255,255,0.38)", lineHeight: 1.9, marginBottom: 24 }}>Stellar is a public ledger. Every payment — amount, sender, receiver — is permanently visible to anyone who looks. Bots monitor transactions in real time and launch phishing attacks within minutes.</p>
-            <p style={{ fontSize: 14, color: "rgba(255,255,255,0.38)", lineHeight: 1.9 }}>SUIT changes that. We built the privacy layer Stellar needs — making privacy the default and auditability a choice you control.</p>
+            <p style={{ fontSize: 15, color: "var(--text-2)", lineHeight: 1.9, marginBottom: 22 }}>Stellar is a public ledger. Every payment — amount, sender, receiver — is permanently visible. Bots monitor transactions in real time and target users within minutes.</p>
+            <p style={{ fontSize: 15, color: "var(--text-2)", lineHeight: 1.9 }}>SUIT adds the privacy layer: amounts proven in zero-knowledge, balances held as commitments, compliance provable on demand — privacy by default, auditability by choice.</p>
           </div>
-          <div style={{ display: "flex", flexDirection: "column" as const, gap: 2 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
             {[
               { title: "For freelancers", desc: "Get paid without exposing your rates to every client and competitor on-chain." },
-              { title: "For businesses", desc: "Run payroll without every employee seeing every colleague salary on the ledger." },
+              { title: "For businesses", desc: "Run payroll without every employee seeing every colleague's salary on the ledger." },
               { title: "For institutions", desc: "Settle at scale with the compliance trail regulators need — without the exposure." },
-              { title: "For everyone", desc: "Financial privacy is a right. SUIT is the infrastructure that makes it real on Stellar." },
             ].map(item => (
-              <div key={item.title} style={{ padding: "24px 28px", background: "rgba(255,255,255,0.03)", borderLeft: "2px solid rgba(255,255,255,0.12)" }}>
-                <div style={{ fontSize: 11, letterSpacing: "0.12em", textTransform: "uppercase" as const, color: "rgba(255,255,255,0.65)", marginBottom: 8 }}>{item.title}</div>
-                <div style={{ fontSize: 13, color: "rgba(255,255,255,0.32)", lineHeight: 1.7 }}>{item.desc}</div>
+              <div key={item.title} style={{ padding: "22px 26px", background: "var(--surface)", borderLeft: "2px solid var(--border-strong)" }}>
+                <div className="eyebrow" style={{ color: "var(--text-1)", letterSpacing: "0.12em", marginBottom: 8 }}>{item.title}</div>
+                <div style={{ fontSize: 13, color: "var(--text-2)", lineHeight: 1.7 }}>{item.desc}</div>
               </div>
             ))}
           </div>
         </div>
-      </div>
+      </section>
 
-      <div style={{ padding: "120px 48px", background: "#000", borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-        <div style={{ fontSize: 9, letterSpacing: "0.3em", color: "rgba(255,255,255,0.3)", textTransform: "uppercase" as const, marginBottom: 16 }}>The ZK stack</div>
-        <div style={{ fontFamily: "Cormorant Garamond, serif", fontSize: 48, fontWeight: 300, color: "#fff", marginBottom: 64 }}>One proof system, live. More on the roadmap.</div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 1, background: "rgba(255,255,255,0.07)" }}>
+      {/* ---------- zk stack ---------- */}
+      <section id="stack" style={{ padding: "120px 48px", borderTop: "1px solid var(--border)" }}>
+        <span className="eyebrow" style={eyebrow}>The ZK stack</span>
+        <h2 style={{ fontFamily: "var(--font-serif)", fontSize: 46, fontWeight: 300, margin: "16px 0 12px" }}>One proof system, live. More on the roadmap.</h2>
+        <p style={{ fontSize: 14, color: "var(--text-2)", marginBottom: 56, maxWidth: 560 }}>
+          We chose depth over breadth: one system that genuinely verifies on Stellar, rather than several that only appear in a diagram.{" "}
+          <a href={POOL} target="_blank" rel="noreferrer" style={{ color: "var(--accent)" }}>See it on-chain →</a>
+        </p>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 1, background: "var(--border)" }}>
           {[
-            { tool: "Circom", role: "Range proof", status: "Live on testnet", desc: "Proves the payment amount is within policy bounds without revealing it. Groth16 proof verified inside a Soroban contract using Stellar's BLS12-381 pairing host functions." },
-            { tool: "Noir", role: "KYC identity proof", status: "Roadmap", desc: "Would prove a sender holds a valid KYC credential without revealing identity. Circuit scaffolded in the repo; no verifier deployed yet." },
-            { tool: "RISC Zero", role: "Compliance receipt", status: "Roadmap", desc: "Would prove full compliance logic ran in a zkVM, verifiable by an auditor on demand. Not included in this build." },
+            { tool: "Circom", role: "Range proof", status: "Live on testnet", live: true, desc: "Proves the payment amount is within policy bounds without revealing it. Groth16 proof verified inside a Soroban contract using Stellar's BLS12-381 pairing host functions." },
+            { tool: "Noir", role: "KYC identity proof", status: "Roadmap", live: false, desc: "Would prove a sender holds a valid KYC credential without revealing identity. Circuit scaffolded in the repo; no verifier deployed yet." },
+            { tool: "RISC Zero", role: "Compliance receipt", status: "Roadmap", live: false, desc: "Would prove full compliance logic ran in a zkVM, verifiable by an auditor on demand. Not included in this build." },
           ].map(item => (
-            <div key={item.tool} style={{ background: "#0a0a0a", padding: "48px 36px" }}>
-              <div style={{ fontFamily: "Cormorant Garamond, serif", fontSize: 36, fontWeight: 600, color: "#fff", marginBottom: 8 }}>{item.tool}</div>
-              <div style={{ fontSize: 10, letterSpacing: "0.2em", textTransform: "uppercase" as const, color: "rgba(255,255,255,0.3)", marginBottom: 12 }}>{item.role}</div>
-              <span style={{ display: "inline-block", fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase" as const, padding: "3px 10px", borderRadius: 2, marginBottom: 20, color: item.status === "Live on testnet" ? "#4ade80" : "rgba(255,255,255,0.4)", background: item.status === "Live on testnet" ? "rgba(74,222,128,0.1)" : "rgba(255,255,255,0.05)", border: `1px solid ${item.status === "Live on testnet" ? "rgba(74,222,128,0.3)" : "rgba(255,255,255,0.12)"}` }}>{item.status}</span>
-              <div style={{ fontSize: 13, color: "rgba(255,255,255,0.35)", lineHeight: 1.8 }}>{item.desc}</div>
+            <div key={item.tool} style={{ background: "var(--bg-2)", padding: "44px 34px" }}>
+              <div style={{ fontFamily: "var(--font-serif)", fontSize: 34, fontWeight: 600, marginBottom: 6 }}>{item.tool}</div>
+              <div className="eyebrow" style={{ marginBottom: 14 }}>{item.role}</div>
+              <span className="num" style={{ display: "inline-block", fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", padding: "4px 10px", borderRadius: 3, marginBottom: 20, color: item.live ? "var(--accent)" : "var(--text-3)", background: item.live ? "var(--accent-dim)" : "var(--surface)", border: `1px solid ${item.live ? "var(--accent-border)" : "var(--border-strong)"}` }}>{item.status}</span>
+              <div style={{ fontSize: 13, color: "var(--text-2)", lineHeight: 1.8 }}>{item.desc}</div>
             </div>
           ))}
         </div>
+      </section>
+
+      {/* ---------- closing ---------- */}
+      <div style={{ padding: "140px 48px", background: "var(--bg-2)", borderTop: "1px solid var(--border)", textAlign: "center" }}>
+        <div style={{ fontFamily: "var(--font-serif)", fontSize: 60, fontWeight: 300, lineHeight: 1.1 }}>Private by default.</div>
+        <div style={{ fontFamily: "var(--font-serif)", fontSize: 60, fontWeight: 300, color: "var(--text-3)", marginBottom: 44 }}>Auditable by choice.</div>
+        <button className="btn btn-primary" style={{ padding: "16px 44px" }} onClick={onLaunch}>Launch app</button>
       </div>
 
-      <div style={{ padding: "140px 48px", background: "#050505", borderTop: "1px solid rgba(255,255,255,0.06)", textAlign: "center" as const }}>
-        <div style={{ fontFamily: "Cormorant Garamond, serif", fontSize: 64, fontWeight: 300, color: "#fff", marginBottom: 8 }}>Private by default.</div>
-        <div style={{ fontFamily: "Cormorant Garamond, serif", fontSize: 64, fontWeight: 300, color: "rgba(255,255,255,0.3)", marginBottom: 48 }}>Auditable by choice.</div>
-        <button onClick={onLaunch} style={{ fontSize: 11, letterSpacing: "0.2em", textTransform: "uppercase" as const, color: "#000", background: "#fff", border: "none", padding: "16px 48px", cursor: "pointer", fontWeight: 500 }}>Launch app</button>
-      </div>
-
-      <div style={{ padding: "32px 48px", borderTop: "1px solid rgba(255,255,255,0.07)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <div style={{ fontFamily: "Cormorant Garamond, serif", fontSize: 16, fontWeight: 700, letterSpacing: "0.28em", textTransform: "uppercase" as const, color: "#fff" }}>SUIT<span style={{ color: "rgba(255,255,255,0.28)", fontWeight: 300 }}> Protocol</span></div>
-        <div style={{ fontSize: 10, color: "rgba(255,255,255,0.25)", textTransform: "uppercase" as const, letterSpacing: "0.15em" }}>Built on Stellar · Stellar Hacks 2026</div>
-      </div>
-
+      {/* ---------- footer ---------- */}
+      <footer style={{ padding: "32px 48px", borderTop: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div style={{ fontFamily: "var(--font-serif)", fontSize: 16, fontWeight: 700, letterSpacing: "0.28em", textTransform: "uppercase" }}>SUIT<span style={{ color: "var(--text-3)", fontWeight: 300 }}> Protocol</span></div>
+        <div className="num" style={{ fontSize: 10, color: "var(--text-3)", textTransform: "uppercase", letterSpacing: "0.15em" }}>Built on Stellar · Stellar Hacks 2026</div>
+      </footer>
     </div>
   );
 }

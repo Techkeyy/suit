@@ -1,7 +1,8 @@
-/* SUIT Protocol — Global Styles */
-/* Monochromatic dark design system */
+/* SUIT Protocol — Global Styles
+   Editorial dark system: no pure black/white, one precious accent,
+   serif display + grotesk numerals + mono eyebrows. */
 
-@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;600;700&family=Inter:wght@300;400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500;600;700&family=Inter:wght@300;400;500&family=Space+Grotesk:wght@400;500;600;700&display=swap');
 
 *, *::before, *::after {
   box-sizing: border-box;
@@ -10,25 +11,39 @@
 }
 
 :root {
-  --black: #000000;
-  --near-black: #0a0a0a;
-  --surface: #111111;
-  --surface-2: #1a1a1a;
-  --border: rgba(255, 255, 255, 0.08);
-  --border-strong: rgba(255, 255, 255, 0.15);
-  --white: #ffffff;
-  --white-70: rgba(255, 255, 255, 0.70);
-  --white-45: rgba(255, 255, 255, 0.45);
-  --white-30: rgba(255, 255, 255, 0.30);
-  --white-15: rgba(255, 255, 255, 0.15);
-  --white-08: rgba(255, 255, 255, 0.08);
+  /* surfaces — never pure black */
+  --bg: #0b0b0e;
+  --bg-2: #0f0f13;
+  --surface: #16161b;
+  --surface-2: #1c1c22;
+  --border: rgba(255, 255, 255, 0.07);
+  --border-strong: rgba(255, 255, 255, 0.14);
+
+  /* text — never pure white */
+  --text-1: #ececee;
+  --text-2: #a6a6ae;
+  --text-3: #6c6c76;
+
+  /* one precious accent — signals "verified / live / private" */
+  --accent: #6ee7b7;
+  --accent-dim: rgba(110, 231, 183, 0.12);
+  --accent-border: rgba(110, 231, 183, 0.3);
+
   --font-serif: 'Cormorant Garamond', serif;
   --font-sans: 'Inter', sans-serif;
+  --font-num: 'Space Grotesk', sans-serif;
+  --font-mono: 'Space Grotesk', ui-monospace, monospace;
+
+  --nav-h: 70px;
+}
+
+html {
+  scroll-behavior: smooth;
 }
 
 html, body {
-  background: var(--black);
-  color: var(--white);
+  background: var(--bg);
+  color: var(--text-1);
   font-family: var(--font-sans);
   font-size: 14px;
   line-height: 1.5;
@@ -38,11 +53,11 @@ html, body {
 
 input, select, button, textarea {
   font-family: var(--font-sans);
-  color: var(--white);
+  color: var(--text-1);
 }
 
-input::placeholder {
-  color: var(--white-30);
+input::placeholder, textarea::placeholder {
+  color: var(--text-3);
 }
 
 button {
@@ -57,18 +72,74 @@ input, select {
 }
 
 select option {
-  background: var(--near-black);
-  color: var(--white);
+  background: var(--bg-2);
+  color: var(--text-1);
 }
 
-::-webkit-scrollbar {
-  width: 4px;
+/* ---- numerals: tabular grotesk everywhere numbers/data appear ---- */
+.num {
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1, 'ss01' 1;
+  letter-spacing: -0.01em;
 }
 
-::-webkit-scrollbar-track {
-  background: var(--black);
+/* ---- mono eyebrow label (section kicker) ---- */
+.eyebrow {
+  font-family: var(--font-num);
+  font-size: 10px;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  font-weight: 500;
 }
 
-::-webkit-scrollbar-thumb {
-  background: var(--white-15);
+/* ---- button law: shrink on hover, flip toward accent. never grow. ---- */
+.btn {
+  font-family: var(--font-num);
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  font-weight: 500;
+  padding: 14px 32px;
+  border-radius: 4px;
+  transition: transform 0.18s ease, background 0.18s ease, color 0.18s ease, border-color 0.18s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
 }
+.btn:active { transform: scale(0.93); }
+
+.btn-primary {
+  background: var(--text-1);
+  color: var(--bg);
+}
+.btn-primary:hover { transform: scale(0.97); background: var(--accent); }
+.btn-primary:disabled { opacity: 0.5; cursor: default; transform: none; }
+
+.btn-ghost {
+  background: transparent;
+  color: var(--text-2);
+  border: 1px solid var(--border-strong);
+}
+.btn-ghost:hover { transform: scale(0.97); color: var(--accent); border-color: var(--accent-border); }
+
+/* nav text links that actually go somewhere */
+.navlink {
+  font-family: var(--font-num);
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  color: var(--text-2);
+  text-transform: uppercase;
+  cursor: pointer;
+  background: none;
+  transition: color 0.15s ease;
+}
+.navlink:hover { color: var(--text-1); }
+
+section[id], div[id] { scroll-margin-top: var(--nav-h); }
+
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--border-strong); }

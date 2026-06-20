@@ -96,8 +96,8 @@ export default function AppShell({ onBack }: Props) {
           { num: '∞', label: 'Auditable' },
         ].map(s => (
           <div key={s.label} style={{ textAlign: 'center' }}>
-            <div style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: 18, fontWeight: 300 }}>{s.num}</div>
-            <div style={{ fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.25)', marginTop: 2 }}>{s.label}</div>
+            <div className="num" style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-1)' }}>{s.num}</div>
+            <div className="eyebrow" style={{ marginTop: 4 }}>{s.label}</div>
           </div>
         ))}
       </div>

@@ -81,8 +81,8 @@ export default function SendPanel() {
         <div style={{ marginBottom: 20 }}>
           <div style={{ fontSize: 10, letterSpacing: '0.15em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.3)', marginBottom: 8 }}>Proven amount (private input)</div>
           <div style={{ position: 'relative' }}>
-            <input value={amount} onChange={e => setAmount(e.target.value)} placeholder="100" type="number"
-              style={{ width: '100%', background: 'transparent', border: 'none', borderBottom: '1px solid rgba(255,255,255,0.15)', color: '#fff', fontFamily: 'Cormorant Garamond, serif', fontSize: 42, fontWeight: 300, padding: '8px 0 12px', letterSpacing: '0.02em' }} />
+            <input className="num" value={amount} onChange={e => setAmount(e.target.value)} placeholder="100" type="number"
+              style={{ width: '100%', background: 'transparent', border: 'none', borderBottom: '1px solid var(--border-strong)', color: 'var(--text-1)', fontSize: 40, fontWeight: 500, padding: '8px 0 12px' }} />
             <span style={{ position: 'absolute', right: 0, bottom: 16, fontSize: 12, letterSpacing: '0.15em', color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase' }}>XLM</span>
           </div>
           <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', marginTop: 8 }}>
