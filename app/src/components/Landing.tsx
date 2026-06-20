@@ -53,14 +53,14 @@ export default function Landing({ onLaunch }: Props) {
             <strong style={{ fontWeight: 700, color: "#fff" }}>Never.</strong>
           </div>
           <p style={{ fontSize: 11, letterSpacing: "0.14em", color: "rgba(255,255,255,0.35)", textTransform: "uppercase" as const, lineHeight: 2.2, marginBottom: 44 }}>
-            Shielded transfers · Hidden amounts<br />On-demand compliance · Non-custodial
+            Shielded commitments · Proven amounts<br />On-chain ZK verification · Non-custodial
           </p>
           <div style={{ display: "flex", gap: 14, marginBottom: 48 }}>
             <button onClick={onLaunch} style={{ fontSize: 11, letterSpacing: "0.2em", textTransform: "uppercase" as const, color: "#000", background: "#fff", border: "none", padding: "15px 40px", cursor: "pointer", fontWeight: 500 }}>Send privately</button>
             <button onClick={onLaunch} style={{ fontSize: 11, letterSpacing: "0.2em", textTransform: "uppercase" as const, color: "rgba(255,255,255,0.5)", background: "transparent", border: "1px solid rgba(255,255,255,0.2)", padding: "15px 40px", cursor: "pointer" }}>Receive funds</button>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 10, maxWidth: 460 }}>
-            {["Range proof", "KYC proof", "Compliance", "On-chain"].map((label, i) => (
+            {["Range proof", "On-chain verify", "Shielded pool", "Unlinkable (roadmap)"].map((label, i) => (
               <React.Fragment key={label}>
                 <div style={{ width: 5, height: 5, borderRadius: "50%", background: i < 3 ? "rgba(255,255,255,0.7)" : "rgba(255,255,255,0.18)", flexShrink: 0 }} />
                 <span style={{ fontSize: 9, letterSpacing: "0.12em", textTransform: "uppercase" as const, color: i < 3 ? "rgba(255,255,255,0.45)" : "rgba(255,255,255,0.2)", whiteSpace: "nowrap" as const }}>{label}</span>
@@ -72,7 +72,7 @@ export default function Landing({ onLaunch }: Props) {
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", borderTop: "1px solid rgba(255,255,255,0.08)", borderBottom: "1px solid rgba(255,255,255,0.08)", background: "#000" }}>
-        {[{ num: "0.00", label: "Amount visible on-chain" }, { num: "3", label: "ZK proof layers" }, { num: "∞", label: "Auditable on demand" }, { num: "100%", label: "Non-custodial" }].map((s, i) => (
+        {[{ num: "0", label: "Proven amount on-chain" }, { num: "1", label: "Live ZK system (Groth16)" }, { num: "BLS12-381", label: "Verified on testnet" }, { num: "100%", label: "Non-custodial" }].map((s, i) => (
           <div key={s.label} style={{ padding: "28px", borderRight: i < 3 ? "1px solid rgba(255,255,255,0.08)" : "none", textAlign: "center" as const }}>
             <div style={{ fontFamily: "Cormorant Garamond, serif", fontSize: 32, fontWeight: 300, color: "#fff" }}>{s.num}</div>
             <div style={{ fontSize: 9, letterSpacing: "0.2em", textTransform: "uppercase" as const, color: "rgba(255,255,255,0.28)", marginTop: 8 }}>{s.label}</div>
@@ -86,9 +86,9 @@ export default function Landing({ onLaunch }: Props) {
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 1, background: "rgba(255,255,255,0.07)" }}>
           {[
             { step: "01", title: "Enter amount", desc: "Your amount stays entirely on your device. Used as a private ZK input. Never touches the Stellar ledger." },
-            { step: "02", title: "Three proofs generated", desc: "Range proof (Circom), KYC proof (Noir), and compliance receipt (RISC Zero) generated locally in your browser." },
-            { step: "03", title: "Commitment on-chain", desc: "Only a cryptographic commitment and three ZK proofs go to Stellar. No amount. No identity. Nothing traceable." },
-            { step: "04", title: "Receiver withdraws", desc: "Receiver withdraws from the shared pool. No on-chain link connects your deposit to their withdrawal." },
+            { step: "02", title: "Proof generated in-browser", desc: "A Circom/Groth16 range proof (BLS12-381) is generated locally, proving the amount is within policy bounds without revealing it." },
+            { step: "03", title: "Pool verifies on-chain", desc: "A commitment and the proof go to Stellar. The pool runs a real BLS12-381 pairing check before accepting the deposit — no valid proof, no deposit." },
+            { step: "04", title: "Receiver withdraws", desc: "The receiver withdraws from the shared pool using a nullifier; double-spends are rejected on-chain. Full deposit↔withdrawal unlinkability is on the roadmap." },
           ].map(item => (
             <div key={item.step} style={{ background: "#0a0a0a", padding: "40px 32px" }}>
               <div style={{ fontFamily: "Cormorant Garamond, serif", fontSize: 48, color: "rgba(255,255,255,0.08)", marginBottom: 24 }}>{item.step}</div>
@@ -125,16 +125,17 @@ export default function Landing({ onLaunch }: Props) {
 
       <div style={{ padding: "120px 48px", background: "#000", borderTop: "1px solid rgba(255,255,255,0.06)" }}>
         <div style={{ fontSize: 9, letterSpacing: "0.3em", color: "rgba(255,255,255,0.3)", textTransform: "uppercase" as const, marginBottom: 16 }}>The ZK stack</div>
-        <div style={{ fontFamily: "Cormorant Garamond, serif", fontSize: 48, fontWeight: 300, color: "#fff", marginBottom: 64 }}>Three proof systems. One protocol.</div>
+        <div style={{ fontFamily: "Cormorant Garamond, serif", fontSize: 48, fontWeight: 300, color: "#fff", marginBottom: 64 }}>One proof system, live. More on the roadmap.</div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 1, background: "rgba(255,255,255,0.07)" }}>
           {[
-            { tool: "Circom", role: "Range proof", desc: "Proves payment amount is within policy bounds without revealing it. Groth16 proof verified on Soroban using BN254 host functions from Stellar Protocol 25." },
-            { tool: "Noir", role: "KYC identity proof", desc: "Proves sender holds a valid KYC credential without revealing identity or personal data. UltraHonk proof verified on Stellar." },
-            { tool: "RISC Zero", role: "Compliance receipt", desc: "Proves full compliance logic ran correctly inside a zkVM. The receipt is on-chain and verifiable by any auditor on demand." },
+            { tool: "Circom", role: "Range proof", status: "Live on testnet", desc: "Proves the payment amount is within policy bounds without revealing it. Groth16 proof verified inside a Soroban contract using Stellar's BLS12-381 pairing host functions." },
+            { tool: "Noir", role: "KYC identity proof", status: "Roadmap", desc: "Would prove a sender holds a valid KYC credential without revealing identity. Circuit scaffolded in the repo; no verifier deployed yet." },
+            { tool: "RISC Zero", role: "Compliance receipt", status: "Roadmap", desc: "Would prove full compliance logic ran in a zkVM, verifiable by an auditor on demand. Not included in this build." },
           ].map(item => (
             <div key={item.tool} style={{ background: "#0a0a0a", padding: "48px 36px" }}>
               <div style={{ fontFamily: "Cormorant Garamond, serif", fontSize: 36, fontWeight: 600, color: "#fff", marginBottom: 8 }}>{item.tool}</div>
-              <div style={{ fontSize: 10, letterSpacing: "0.2em", textTransform: "uppercase" as const, color: "rgba(255,255,255,0.3)", marginBottom: 24 }}>{item.role}</div>
+              <div style={{ fontSize: 10, letterSpacing: "0.2em", textTransform: "uppercase" as const, color: "rgba(255,255,255,0.3)", marginBottom: 12 }}>{item.role}</div>
+              <span style={{ display: "inline-block", fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase" as const, padding: "3px 10px", borderRadius: 2, marginBottom: 20, color: item.status === "Live on testnet" ? "#4ade80" : "rgba(255,255,255,0.4)", background: item.status === "Live on testnet" ? "rgba(74,222,128,0.1)" : "rgba(255,255,255,0.05)", border: `1px solid ${item.status === "Live on testnet" ? "rgba(74,222,128,0.3)" : "rgba(255,255,255,0.12)"}` }}>{item.status}</span>
               <div style={{ fontSize: 13, color: "rgba(255,255,255,0.35)", lineHeight: 1.8 }}>{item.desc}</div>
             </div>
           ))}
