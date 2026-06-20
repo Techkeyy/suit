@@ -4,7 +4,7 @@ interface Props {
   onLaunch: () => void;
 }
 
-const POOL = "https://stellar.expert/explorer/testnet/contract/CAQ2CBPLAUGW5DY34V3TRB47OYX4NQTYGPYCHDXLU6PKWK3JAX6VCRN7";
+const POOL = "https://stellar.expert/explorer/testnet/contract/CABQ33ASB4XAWO32VUHQAEC7EPXJ7ZNVG6OXMLVNUYSOOIZ53UAZTVPA";
 const VERIFIER = "https://stellar.expert/explorer/testnet/contract/CA2W26LBXZ7FZWKKPW4NHTO52AUYWBAT47S2QMMDDEWORFG4RYQKAWIV";
 
 const scrollTo = (id: string) => () =>

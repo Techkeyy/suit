@@ -21,3 +21,7 @@ Thumbs.db
 
 # keep ZK build artifacts (proof.hex, vk.hex, verification_key.json, zkey, ptau)
 # so the on-chain demo is reproducible — do NOT ignore circuits/circom/build
+
+# never commit secrets/temp repro
+.deployer_secret
+*.deployer_secret

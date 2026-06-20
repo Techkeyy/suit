@@ -10,7 +10,7 @@
   "dependencies": {
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "@stellar/stellar-sdk": "^13.1.0",
+    "@stellar/stellar-sdk": "^16.0.1",
     "@stellar/freighter-api": "^4.0.0",
     "js-sha3": "^0.9.3",
     "snarkjs": "^0.7.4"
