@@ -1,7 +1,36 @@
 import React, { useState } from 'react';
+import { useWallet } from '../lib/wallet';
+import { withdraw, CONFIG, getStoredLeaves } from '../lib/suit';
+
+type Phase = 'idle' | 'working' | 'done' | 'error';
 
 export default function ReceivePanel() {
-  const [note, setNote] = useState('');
+  const { address, connect } = useWallet();
+  const [noteStr, setNoteStr] = useState('');
+  const [recipient, setRecipient] = useState('');
+  const [phase, setPhase] = useState<Phase>('idle');
+  const [txHash, setTxHash] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function handleWithdraw() {
+    if (!address) return connect();
+    setErr(null);
+    setTxHash(null);
+    try {
+      const note = JSON.parse(noteStr);
+      if (!note.amount || !note.secret) throw new Error('Invalid note: expected { amount, secret }');
+      const to = recipient.trim() || address;
+      setPhase('working');
+      const hash = await withdraw(address, note, to);
+      setTxHash(hash);
+      setPhase('done');
+    } catch (e: any) {
+      setErr(e.message || String(e));
+      setPhase('error');
+    }
+  }
+
+  const knownLeaves = getStoredLeaves().length;
 
   return (
     <div style={{ maxWidth: 560, margin: '0 auto' }}>
@@ -10,43 +39,38 @@ export default function ReceivePanel() {
       </div>
 
       <div style={{ marginBottom: 20 }}>
-        <div style={{ fontSize: 10, letterSpacing: '0.15em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.3)', marginBottom: 8 }}>Payment note</div>
-        <input value={note} onChange={e => setNote(e.target.value)} placeholder="Paste encrypted note from sender"
-          style={{ width: '100%', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', fontSize: 14, padding: '12px 14px', borderRadius: 4 }} />
+        <div style={{ fontSize: 10, letterSpacing: '0.15em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.3)', marginBottom: 8 }}>Withdrawal note</div>
+        <textarea value={noteStr} onChange={e => setNoteStr(e.target.value)} placeholder='{"amount":"1000000000","secret":"…"}'
+          style={{ width: '100%', height: 56, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', fontSize: 12, padding: '12px 14px', borderRadius: 4, fontFamily: 'monospace', resize: 'none' }} />
+        <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', marginTop: 6 }}>{knownLeaves} commitment(s) known to this device's pool view.</div>
       </div>
 
-      {[
-        { key: 'Amount', value: '● ● ● ● ●', muted: true },
-        { key: 'Commitment', value: '0x7f3a…c91b', muted: false },
-        { key: 'Nullifier', value: '0xe2b1…44af', muted: false },
-        { key: 'Pool status', value: 'Commitment verified', muted: false },
-      ].map(row => (
-        <div key={row.key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-          <span style={{ fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.3)' }}>{row.key}</span>
-          <span style={{ fontSize: 13, color: row.muted ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.75)', fontFamily: 'monospace', letterSpacing: row.muted ? '0.25em' : 'normal' }}>{row.value}</span>
-        </div>
-      ))}
-
-      <div style={{ marginTop: 20 }}>
-        <div style={{ fontSize: 10, letterSpacing: '0.15em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.3)', marginBottom: 8 }}>Merkle proof path</div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '12px 14px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 4 }}>
-          {[true, true, true, false, false].map((active, i) => (
-            <React.Fragment key={i}>
-              <div style={{ width: 8, height: 8, borderRadius: '50%', background: active ? '#fff' : 'rgba(255,255,255,0.15)' }} />
-              {i < 4 && <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.1)' }} />}
-            </React.Fragment>
-          ))}
-          <span style={{ fontSize: 10, letterSpacing: '0.12em', color: 'rgba(255,255,255,0.25)', textTransform: 'uppercase', marginLeft: 8 }}>Depth 3 of 5</span>
-        </div>
+      <div style={{ marginBottom: 20 }}>
+        <div style={{ fontSize: 10, letterSpacing: '0.15em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.3)', marginBottom: 8 }}>Recipient (defaults to your wallet)</div>
+        <input value={recipient} onChange={e => setRecipient(e.target.value)} placeholder="G… (leave blank to withdraw to yourself)"
+          style={{ width: '100%', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', fontSize: 13, padding: '12px 14px', borderRadius: 4, fontFamily: 'monospace' }} />
       </div>
 
-      <button style={{ width: '100%', background: '#fff', color: '#000', border: 'none', fontSize: 11, letterSpacing: '0.2em', textTransform: 'uppercase', padding: 14, cursor: 'pointer', fontWeight: 500, marginTop: 20 }}>
-        Withdraw funds
+      <button onClick={handleWithdraw} disabled={phase === 'working'}
+        style={{ width: '100%', background: '#fff', color: '#000', border: 'none', fontSize: 11, letterSpacing: '0.2em', textTransform: 'uppercase', padding: 14, cursor: phase === 'working' ? 'default' : 'pointer', fontWeight: 500, opacity: phase === 'working' ? 0.6 : 1 }}>
+        {!address ? 'Connect wallet' : phase === 'working' ? 'Building proof & withdrawing…' : 'Withdraw 100 XLM'}
       </button>
+
+      {err && (
+        <div style={{ fontSize: 11, color: 'rgba(248,180,180,0.9)', background: 'rgba(248,113,113,0.1)', border: '1px solid rgba(248,113,113,0.2)', borderRadius: 4, padding: 12, marginTop: 16, fontFamily: 'monospace', wordBreak: 'break-all' }}>{err}</div>
+      )}
+      {txHash && (
+        <a href={`${CONFIG.explorer}/tx/${txHash}`} target="_blank" rel="noreferrer"
+          style={{ display: 'block', fontSize: 11, color: '#4ade80', marginTop: 16, fontFamily: 'monospace', wordBreak: 'break-all' }}>
+          ✓ Withdrawn. View transaction: {txHash.slice(0, 20)}…
+        </a>
+      )}
 
       <div style={{ padding: '12px 14px', background: 'rgba(255,255,255,0.03)', borderLeft: '2px solid rgba(255,255,255,0.15)', marginTop: 16 }}>
         <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', lineHeight: 1.6 }}>
-          Withdrawal is unlinked from your deposit. An observer cannot connect this withdrawal to any specific sender on the Stellar ledger.
+          The note proves a commitment exists in the pool via a Merkle path; a nullifier prevents double-spends.
+          Note: this version verifies the Merkle path on-chain, so the spent leaf is revealed — full
+          deposit↔withdrawal unlinkability (a ZK membership proof) is on the roadmap.
         </p>
       </div>
     </div>

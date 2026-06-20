@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import SendPanel from './SendPanel';
 import ReceivePanel from './ReceivePanel';
 import ReceiptsPanel from './ReceiptsPanel';
+import { useWallet } from '../lib/wallet';
 
 type Tab = 'send' | 'receive' | 'receipts';
 
@@ -11,6 +12,8 @@ interface Props {
 
 export default function AppShell({ onBack }: Props) {
   const [tab, setTab] = useState<Tab>('send');
+  const { address, connect, connecting, error } = useWallet();
+  const short = (a: string) => `${a.slice(0, 4)}…${a.slice(-4)}`;
 
   const navStyle: React.CSSProperties = {
     display: 'flex',
@@ -23,11 +26,18 @@ export default function AppShell({ onBack }: Props) {
 
   return (
     <div style={{ background: '#0a0a0a', minHeight: '100vh', color: '#fff', fontFamily: 'Inter, sans-serif' }}>
-      <div style={{ background: 'rgba(255,255,255,0.04)', borderBottom: '1px solid rgba(255,255,255,0.07)', padding: '8px 28px', fontSize: 11, color: 'rgba(255,255,255,0.45)', textAlign: 'center' }}>
-        Front-end preview. Live ZK proof generation &amp; on-chain verification run via the SDK / CLI (see demo).{' '}
-        Deployed verifier on testnet:{' '}
-        <a href="https://stellar.expert/explorer/testnet/contract/CA2W26LBXZ7FZWKKPW4NHTO52AUYWBAT47S2QMMDDEWORFG4RYQKAWIV" target="_blank" rel="noreferrer" style={{ color: 'rgba(255,255,255,0.7)' }}>CA2W…KAWIV</a>
+      <div style={{ background: 'rgba(74,222,128,0.06)', borderBottom: '1px solid rgba(255,255,255,0.07)', padding: '8px 28px', fontSize: 11, color: 'rgba(255,255,255,0.5)', textAlign: 'center' }}>
+        Live on Stellar testnet — proofs are generated in your browser and verified on-chain.{' '}
+        <a href="https://stellar.expert/explorer/testnet/contract/CC3YJSNMD22EE4ZLJI2SN7D566TIIHDMI6NZLE3MREARMBKUQDSWBHXC" target="_blank" rel="noreferrer" style={{ color: 'rgba(255,255,255,0.75)' }}>pool</a>
+        {' · '}
+        <a href="https://stellar.expert/explorer/testnet/contract/CA2W26LBXZ7FZWKKPW4NHTO52AUYWBAT47S2QMMDDEWORFG4RYQKAWIV" target="_blank" rel="noreferrer" style={{ color: 'rgba(255,255,255,0.75)' }}>verifier</a>
+        . Requires the Freighter wallet on testnet.
       </div>
+      {error && (
+        <div style={{ background: 'rgba(248,113,113,0.12)', borderBottom: '1px solid rgba(248,113,113,0.2)', padding: '8px 28px', fontSize: 11, color: 'rgba(248,180,180,0.9)', textAlign: 'center' }}>
+          {error}
+        </div>
+      )}
       <nav style={navStyle}>
         <div
           onClick={onBack}
@@ -57,10 +67,18 @@ export default function AppShell({ onBack }: Props) {
           ))}
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', padding: '6px 14px', borderRadius: 4 }}>
-          <div style={{ width: 7, height: 7, background: 'rgba(255,255,255,0.7)', borderRadius: '50%' }} />
-          <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', fontFamily: 'monospace' }}>GDQP…7XKM</span>
-        </div>
+        {address ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', padding: '6px 14px', borderRadius: 4 }}>
+            <div style={{ width: 7, height: 7, background: '#4ade80', borderRadius: '50%' }} />
+            <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.65)', fontFamily: 'monospace' }}>{short(address)}</span>
+          </div>
+        ) : (
+          <button onClick={connect} disabled={connecting}
+            title={error || ''}
+            style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#fff', color: '#000', border: 'none', padding: '8px 16px', borderRadius: 4, fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer', fontWeight: 500 }}>
+            {connecting ? 'Connecting…' : 'Connect Freighter'}
+          </button>
+        )}
       </nav>
 
       <div style={{ padding: 28 }}>
