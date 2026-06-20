@@ -5,7 +5,7 @@ import { deposit, verifyOnChain, generateRangeProof, CONFIG, Note } from '../lib
 type Phase = 'idle' | 'proving' | 'verifying' | 'depositing' | 'done' | 'error';
 
 export default function SendPanel() {
-  const { address, connect } = useWallet();
+  const { address, openModal } = useWallet();
   const [amount, setAmount] = useState('100');
   const [phase, setPhase] = useState<Phase>('idle');
   const [log, setLog] = useState<string[]>([]);
@@ -19,7 +19,7 @@ export default function SendPanel() {
   const toBase = (xlm: string) => BigInt(Math.round(parseFloat(xlm) * 1e7));
 
   async function handleSend() {
-    if (!address) return connect();
+    if (!address) return openModal();
     setErr(null);
     setTxHash(null);
     setNote(null);
@@ -49,7 +49,7 @@ export default function SendPanel() {
   }
 
   async function handleVerifyPreview() {
-    if (!address) return connect();
+    if (!address) return openModal();
     setErr(null);
     setLog([]);
     try {

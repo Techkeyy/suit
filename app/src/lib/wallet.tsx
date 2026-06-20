@@ -7,6 +7,9 @@ interface WalletState {
   error: string | null;
   connect: () => Promise<void>;
   disconnect: () => void;
+  modalOpen: boolean;
+  openModal: () => void;
+  closeModal: () => void;
 }
 
 const Ctx = createContext<WalletState>({
@@ -15,6 +18,9 @@ const Ctx = createContext<WalletState>({
   error: null,
   connect: async () => {},
   disconnect: () => {},
+  modalOpen: false,
+  openModal: () => {},
+  closeModal: () => {},
 });
 
 const DISCONNECTED_KEY = 'suit_wallet_disconnected';
@@ -23,9 +29,9 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const [address, setAddress] = useState<string | null>(null);
   const [connecting, setConnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [modalOpen, setModalOpen] = useState(false);
 
   useEffect(() => {
-    // only auto-restore if the user didn't explicitly disconnect
     if (localStorage.getItem(DISCONNECTED_KEY) === '1') return;
     getWalletAddress().then((a) => a && setAddress(a));
   }, []);
@@ -37,6 +43,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       const a = await connectWallet();
       localStorage.removeItem(DISCONNECTED_KEY);
       setAddress(a);
+      setModalOpen(false);
     } catch (e: any) {
       setError(e.message || String(e));
     } finally {
@@ -50,8 +57,16 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     setError(null);
   };
 
+  const openModal = () => {
+    setError(null);
+    setModalOpen(true);
+  };
+  const closeModal = () => setModalOpen(false);
+
   return (
-    <Ctx.Provider value={{ address, connecting, error, connect, disconnect }}>
+    <Ctx.Provider
+      value={{ address, connecting, error, connect, disconnect, modalOpen, openModal, closeModal }}
+    >
       {children}
     </Ctx.Provider>
   );

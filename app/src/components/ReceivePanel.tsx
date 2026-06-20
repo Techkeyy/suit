@@ -5,7 +5,7 @@ import { withdraw, CONFIG, getStoredLeaves } from '../lib/suit';
 type Phase = 'idle' | 'working' | 'done' | 'error';
 
 export default function ReceivePanel() {
-  const { address, connect } = useWallet();
+  const { address, openModal } = useWallet();
   const [noteStr, setNoteStr] = useState('');
   const [recipient, setRecipient] = useState('');
   const [phase, setPhase] = useState<Phase>('idle');
@@ -13,7 +13,7 @@ export default function ReceivePanel() {
   const [err, setErr] = useState<string | null>(null);
 
   async function handleWithdraw() {
-    if (!address) return connect();
+    if (!address) return openModal();
     setErr(null);
     setTxHash(null);
     try {

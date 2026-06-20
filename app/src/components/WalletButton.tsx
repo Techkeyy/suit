@@ -3,8 +3,7 @@ import { useWallet } from '../lib/wallet';
 import { CONFIG } from '../lib/suit';
 
 export default function WalletButton() {
-  const { address, connect, connecting, error, disconnect } = useWallet();
-  const [open, setOpen] = useState(false);
+  const { address, connect, connecting, error, disconnect, modalOpen, openModal, closeModal } = useWallet();
   const [copied, setCopied] = useState(false);
 
   const short = (a: string) => `${a.slice(0, 4)}…${a.slice(-4)}`;
@@ -18,26 +17,26 @@ export default function WalletButton() {
 
   const trigger = address ? (
     <button
-      onClick={() => setOpen(true)}
+      onClick={openModal}
       style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--surface)', border: '1px solid var(--border-strong)', padding: '7px 14px', borderRadius: 6, cursor: 'pointer' }}
     >
       <span style={{ width: 7, height: 7, background: 'var(--accent)', borderRadius: '50%', boxShadow: '0 0 8px var(--accent)' }} />
       <span className="num" style={{ fontSize: 11, color: 'var(--text-1)', letterSpacing: '0.04em' }}>{short(address)}</span>
     </button>
   ) : (
-    <button className="btn btn-primary" onClick={() => setOpen(true)}>Connect wallet</button>
+    <button className="btn btn-primary" onClick={openModal}>Connect wallet</button>
   );
 
   return (
     <>
       {trigger}
-      {open && (
-        <div className="modal-overlay" onClick={() => setOpen(false)}>
+      {modalOpen && (
+        <div className="modal-overlay" onClick={closeModal}>
           <div className="modal-card" onClick={(e) => e.stopPropagation()}>
             {/* header */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 22 }}>
               <span className="eyebrow">{address ? 'Wallet' : 'Connect a wallet'}</span>
-              <button onClick={() => setOpen(false)} style={{ background: 'none', color: 'var(--text-3)', fontSize: 18, lineHeight: 1, padding: 0 }}>×</button>
+              <button onClick={closeModal} style={{ background: 'none', color: 'var(--text-3)', fontSize: 18, lineHeight: 1, padding: 0 }}>×</button>
             </div>
 
             {address ? (
@@ -59,7 +58,7 @@ export default function WalletButton() {
                   View on Stellar Expert ↗
                 </a>
 
-                <button className="btn btn-ghost" style={{ width: '100%' }} onClick={() => { disconnect(); setOpen(false); }}>
+                <button className="btn btn-ghost" style={{ width: '100%' }} onClick={() => { disconnect(); closeModal(); }}>
                   Disconnect
                 </button>
               </>
