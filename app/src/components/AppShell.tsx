@@ -28,7 +28,7 @@ export default function AppShell({ onBack }: Props) {
     <div style={{ background: '#0a0a0a', minHeight: '100vh', color: '#fff', fontFamily: 'Inter, sans-serif' }}>
       <div style={{ background: 'rgba(74,222,128,0.06)', borderBottom: '1px solid rgba(255,255,255,0.07)', padding: '8px 28px', fontSize: 11, color: 'rgba(255,255,255,0.5)', textAlign: 'center' }}>
         Live on Stellar testnet — proofs are generated in your browser and verified on-chain.{' '}
-        <a href="https://stellar.expert/explorer/testnet/contract/CC3YJSNMD22EE4ZLJI2SN7D566TIIHDMI6NZLE3MREARMBKUQDSWBHXC" target="_blank" rel="noreferrer" style={{ color: 'rgba(255,255,255,0.75)' }}>pool</a>
+        <a href="https://stellar.expert/explorer/testnet/contract/CAQ2CBPLAUGW5DY34V3TRB47OYX4NQTYGPYCHDXLU6PKWK3JAX6VCRN7" target="_blank" rel="noreferrer" style={{ color: 'rgba(255,255,255,0.75)' }}>pool</a>
         {' · '}
         <a href="https://stellar.expert/explorer/testnet/contract/CA2W26LBXZ7FZWKKPW4NHTO52AUYWBAT47S2QMMDDEWORFG4RYQKAWIV" target="_blank" rel="noreferrer" style={{ color: 'rgba(255,255,255,0.75)' }}>verifier</a>
         . Requires the Freighter wallet on testnet.
@@ -51,19 +51,20 @@ export default function AppShell({ onBack }: Props) {
             <button
               key={t}
               onClick={() => setTab(t)}
+              className="num"
               style={{
                 fontSize: 11,
                 letterSpacing: '0.1em',
                 textTransform: 'uppercase',
-                color: tab === t ? '#000' : 'rgba(255,255,255,0.4)',
-                background: tab === t ? '#fff' : 'transparent',
+                color: tab === t ? 'var(--bg)' : 'var(--text-2)',
+                background: tab === t ? 'var(--text-1)' : 'transparent',
                 padding: '7px 18px',
                 border: 'none',
                 borderRadius: 4,
                 cursor: 'pointer',
                 transition: 'all 0.15s',
               }}
-            >{t}</button>
+            >{({ send: 'Shield', receive: 'Withdraw', receipts: 'Activity' } as Record<Tab, string>)[t]}</button>
           ))}
         </div>
 

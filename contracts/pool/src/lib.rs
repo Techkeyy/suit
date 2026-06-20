@@ -64,6 +64,7 @@ pub enum PoolError {
     NullifierAlreadySpent = 7,
     MerklePathInvalid = 8,
     BadPathLength = 9,
+    CommitmentMismatch = 10,
 }
 
 #[contracttype]
@@ -154,6 +155,19 @@ impl SuitPool {
         let ok = VerifierClient::new(&env, &verifier).verify(&proof_bytes, &pub_signals_bytes);
         if !ok {
             return Err(PoolError::InvalidProof);
+        }
+
+        // Bind the stored commitment to the value the proof actually committed
+        // to. Public signals layout: u32 len(4) | s0(32) | s1(32) | s2(32),
+        // where s2 (offset 68..100) is the circuit's `commitment`. Without this,
+        // a valid range proof could be paired with an unrelated leaf.
+        if pub_signals_bytes.len() != 100 {
+            return Err(PoolError::CommitmentMismatch);
+        }
+        let mut proof_commitment = [0u8; 32];
+        pub_signals_bytes.slice(68..100).copy_into_slice(&mut proof_commitment);
+        if proof_commitment != commitment.to_array() {
+            return Err(PoolError::CommitmentMismatch);
         }
 
         // Pull the fixed denomination from the depositor into the pool.

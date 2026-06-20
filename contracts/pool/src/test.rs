@@ -63,6 +63,14 @@ fn valid_proof(env: &Env) -> Bytes {
 fn invalid_proof(env: &Env) -> Bytes {
     Bytes::from_array(env, &[0u8])
 }
+// Public-signals blob whose 3rd signal (offset 68..100) equals `commitment`,
+// matching the encoding the pool's commitment-binding check expects.
+fn pub_for(env: &Env, commitment: &BytesN<32>) -> Bytes {
+    let mut v = [0u8; 100];
+    v[3] = 3; // u32 BE: 3 public signals
+    v[68..100].copy_from_slice(&commitment.to_array());
+    Bytes::from_array(env, &v)
+}
 
 // --- recompute the contract's keccak tree primitives in-test ---
 
@@ -110,7 +118,7 @@ fn deposit_inserts_commitment_and_pulls_funds() {
         &f.depositor,
         &commitment,
         &valid_proof(&f.env),
-        &Bytes::new(&f.env),
+        &pub_for(&f.env, &commitment),
     );
     assert_eq!(idx, 0);
     assert_eq!(f.pool.get_count(), 1);
@@ -118,10 +126,26 @@ fn deposit_inserts_commitment_and_pulls_funds() {
 }
 
 #[test]
+fn deposit_rejects_commitment_proof_mismatch() {
+    let f = setup();
+    let commitment = BytesN::from_array(&f.env, &[7u8; 32]);
+    let other = BytesN::from_array(&f.env, &[9u8; 32]);
+    // valid proof, but public signals commit to a DIFFERENT value than the leaf
+    let res = f.pool.try_deposit(
+        &f.depositor,
+        &commitment,
+        &valid_proof(&f.env),
+        &pub_for(&f.env, &other),
+    );
+    assert_eq!(res, Err(Ok(PoolError::CommitmentMismatch)));
+    assert_eq!(f.pool.get_count(), 0);
+}
+
+#[test]
 fn duplicate_commitment_rejected() {
     let f = setup();
     let commitment = BytesN::from_array(&f.env, &[7u8; 32]);
-    f.pool.deposit(&f.depositor, &commitment, &valid_proof(&f.env), &Bytes::new(&f.env));
+    f.pool.deposit(&f.depositor, &commitment, &valid_proof(&f.env), &pub_for(&f.env, &commitment));
     let res = f.pool.try_deposit(
         &f.depositor,
         &commitment,
@@ -136,7 +160,7 @@ fn full_deposit_withdraw_cycle() {
     let f = setup();
     let commitment = BytesN::from_array(&f.env, &[42u8; 32]);
 
-    f.pool.deposit(&f.depositor, &commitment, &valid_proof(&f.env), &Bytes::new(&f.env));
+    f.pool.deposit(&f.depositor, &commitment, &valid_proof(&f.env), &pub_for(&f.env, &commitment));
     let root = f.pool.get_root();
 
     // Single leaf at index 0: every sibling is the zero subtree, every
@@ -185,7 +209,7 @@ fn full_deposit_withdraw_cycle() {
 fn withdraw_unknown_root_rejected() {
     let f = setup();
     let commitment = BytesN::from_array(&f.env, &[42u8; 32]);
-    f.pool.deposit(&f.depositor, &commitment, &valid_proof(&f.env), &Bytes::new(&f.env));
+    f.pool.deposit(&f.depositor, &commitment, &valid_proof(&f.env), &pub_for(&f.env, &commitment));
 
     let bogus_root = BytesN::from_array(&f.env, &[1u8; 32]);
     let mut path_elements: Vec<BytesN<32>> = Vec::new(&f.env);

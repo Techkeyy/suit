@@ -27,14 +27,14 @@ import { keccak256 } from 'js-sha3';
 export const CONFIG = {
   rpcUrl: 'https://soroban-testnet.stellar.org',
   network: Networks.TESTNET,
-  poolId: 'CC3YJSNMD22EE4ZLJI2SN7D566TIIHDMI6NZLE3MREARMBKUQDSWBHXC',
+  poolId: 'CAQ2CBPLAUGW5DY34V3TRB47OYX4NQTYGPYCHDXLU6PKWK3JAX6VCRN7',
   verifierId: 'CA2W26LBXZ7FZWKKPW4NHTO52AUYWBAT47S2QMMDDEWORFG4RYQKAWIV',
   tokenId: 'CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC',
   denomination: 1_000_000_000n, // 100 XLM (7 decimals)
   depth: 16,
-  // policy bounds proven by the range circuit
-  minAmount: 1_000_000_000n,
-  maxAmount: 100_000_000_000n,
+  // policy bounds proven by the range circuit (denomination sits inside)
+  minAmount: 100_000_000n, // 10 XLM
+  maxAmount: 100_000_000_000n, // 10,000 XLM
   explorer: 'https://stellar.expert/explorer/testnet',
 };
 
@@ -188,6 +188,7 @@ export function randomSecret(): bigint {
 // depositor). Each successful deposit appends its leaf in index order.
 
 const LEAVES_KEY = 'suit_leaves_v1';
+const NOTES_KEY = 'suit_notes_v1';
 
 export function getStoredLeaves(): string[] {
   try {
@@ -202,6 +203,29 @@ function appendLeaf(leafHex: string): number {
   leaves.push(leafHex);
   localStorage.setItem(LEAVES_KEY, JSON.stringify(leaves));
   return index;
+}
+
+export interface StoredNote extends Note {
+  spent: boolean;
+  txHash: string;
+  ts: number;
+}
+
+export function getNotes(): StoredNote[] {
+  try {
+    return JSON.parse(localStorage.getItem(NOTES_KEY) || '[]');
+  } catch {
+    return [];
+  }
+}
+function addNote(note: StoredNote) {
+  const notes = getNotes();
+  notes.push(note);
+  localStorage.setItem(NOTES_KEY, JSON.stringify(notes));
+}
+function markNoteSpent(leafHex: string) {
+  const notes = getNotes().map((n) => (n.leafHex === leafHex ? { ...n, spent: true } : n));
+  localStorage.setItem(NOTES_KEY, JSON.stringify(notes));
 }
 
 // ───────────────────────── Freighter wallet ─────────────────────────────────
@@ -300,8 +324,9 @@ export interface DepositResult {
   note: Note;
 }
 
-/** Generate a proof, then deposit into the pool (ZK-gated). */
-export async function deposit(address: string, amount: bigint): Promise<DepositResult> {
+/** Shield the fixed denomination: generate a proof, then deposit (ZK-gated). */
+export async function deposit(address: string): Promise<DepositResult> {
+  const amount = CONFIG.denomination;
   const secret = randomSecret();
   const note = deriveNote(amount, secret);
   const bundle = await generateRangeProof(amount, secret);
@@ -316,6 +341,7 @@ export async function deposit(address: string, amount: bigint): Promise<DepositR
   );
   const txHash = await signAndSend(address, op);
   const leafIndex = appendLeaf(note.leafHex);
+  addNote({ ...note, leafIndex, spent: false, txHash, ts: Date.now() });
   return { txHash, note: { ...note, leafIndex } };
 }
 
@@ -344,7 +370,9 @@ export async function withdraw(
     xdr.ScVal.scvVec(pathIndices.map((i) => nativeToScVal(i, { type: 'u32' }))),
     scvBytes(root)
   );
-  return signAndSend(address, op);
+  const txHash = await signAndSend(address, op);
+  markNoteSpent(derived.leafHex);
+  return txHash;
 }
 
 export async function getPoolCount(): Promise<number> {
