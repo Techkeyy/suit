@@ -1,0 +1,7 @@
+credential_hash = "1"
+credential_secret = "2"
+issuer_id = "1"
+kyc_level = "1"
+issuer_commitment = "24691"
+credential_nullifier = "5"
+min_kyc_level = "1"

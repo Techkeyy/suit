@@ -1,0 +1,7 @@
+[package]
+name = "suit_kyc_proof"
+type = "bin"
+authors = ["SUIT Protocol"]
+compiler_version = ">=0.36.0"
+
+[dependencies]

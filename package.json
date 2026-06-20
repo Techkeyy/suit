@@ -1,0 +1,18 @@
+{
+  "name": "suit-protocol",
+  "version": "0.0.1",
+  "description": "SUIT — Shielded Universal Payment Protocol on Stellar",
+  "private": true,
+  "workspaces": [
+    "sdk",
+    "app",
+    "scripts"
+  ],
+  "scripts": {
+    "build": "echo 'Run build scripts per component'",
+    "test": "echo 'Run tests per component'"
+  },
+  "dependencies": {
+    "js-sha3": "^0.9.3"
+  }
+}

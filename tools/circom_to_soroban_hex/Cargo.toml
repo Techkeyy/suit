@@ -1,0 +1,22 @@
+[package]
+name = "circom-to-soroban-hex"
+version = "0.1.0"
+edition = "2021"
+
+# Host-side CLI tool (std). Converts snarkjs Groth16 JSON artifacts
+# (verification_key.json, proof.json, public.json) into the canonical
+# hex byte payloads consumed by the SUIT Groth16 verifier contract.
+# Encoding is matched 1:1 with contracts/groth16_verifier parsing.
+
+[[bin]]
+name = "circom-to-soroban-hex"
+path = "src/main.rs"
+
+[dependencies]
+ark-bls12-381 = "0.4"
+ark-serialize = "0.4"
+ark-ff = "0.4"
+num-bigint = "0.4"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+hex = "0.4"

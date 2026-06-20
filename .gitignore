@@ -1,0 +1,23 @@
+# dependencies
+node_modules/
+**/node_modules/
+
+# rust build output
+target/
+**/target/
+
+# js build output
+dist/
+**/dist/
+.vite/
+**/.vite/
+
+# stellar local state
+.stellar/
+
+# os / editor
+.DS_Store
+Thumbs.db
+
+# keep ZK build artifacts (proof.hex, vk.hex, verification_key.json, zkey, ptau)
+# so the on-chain demo is reproducible — do NOT ignore circuits/circom/build

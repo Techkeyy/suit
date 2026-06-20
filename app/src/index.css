@@ -1,0 +1,74 @@
+/* SUIT Protocol — Global Styles */
+/* Monochromatic dark design system */
+
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;600;700&family=Inter:wght@300;400;500&display=swap');
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  --black: #000000;
+  --near-black: #0a0a0a;
+  --surface: #111111;
+  --surface-2: #1a1a1a;
+  --border: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.15);
+  --white: #ffffff;
+  --white-70: rgba(255, 255, 255, 0.70);
+  --white-45: rgba(255, 255, 255, 0.45);
+  --white-30: rgba(255, 255, 255, 0.30);
+  --white-15: rgba(255, 255, 255, 0.15);
+  --white-08: rgba(255, 255, 255, 0.08);
+  --font-serif: 'Cormorant Garamond', serif;
+  --font-sans: 'Inter', sans-serif;
+}
+
+html, body {
+  background: var(--black);
+  color: var(--white);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+}
+
+input, select, button, textarea {
+  font-family: var(--font-sans);
+  color: var(--white);
+}
+
+input::placeholder {
+  color: var(--white-30);
+}
+
+button {
+  cursor: pointer;
+  border: none;
+  outline: none;
+}
+
+input, select {
+  outline: none;
+  background: transparent;
+}
+
+select option {
+  background: var(--near-black);
+  color: var(--white);
+}
+
+::-webkit-scrollbar {
+  width: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--black);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--white-15);
+}

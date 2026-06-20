@@ -1,0 +1,14 @@
+{
+  "name": "suit-circuits-circom",
+  "version": "0.0.1",
+  "scripts": {
+    "compile": "circom RangeProof.circom --r1cs --wasm --sym --prime bls12381 --output ./build",
+    "setup": "echo 'Setup trusted ceremony / parameters (manual steps)'",
+    "prove": "echo 'Run witness generation and snarkjs groth16 prove (manual)'",
+    "verify-local": "echo 'Verify locally with snarkjs groth16 verify'"
+  },
+  "dependencies": {
+    "circomlib": "^2.0.5",
+    "snarkjs": "^0.6.11"
+  }
+}
