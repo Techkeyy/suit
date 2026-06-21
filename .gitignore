@@ -25,3 +25,6 @@ Thumbs.db
 # never commit secrets/temp repro
 .deployer_secret
 *.deployer_secret
+
+# large powers-of-tau (regenerable; not needed at runtime)
+*.ptau
