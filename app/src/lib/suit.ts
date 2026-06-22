@@ -1,393 +1,258 @@
-// SUIT — browser client for the live testnet contracts.
+// SUIT — browser client for the UNLINKABLE pool (v2).
 //
-// Everything runs client-side: Groth16 proving (snarkjs), the snarkjs→Soroban
-// byte encoding (verified byte-for-byte against the Rust converter), the
-// keccak256 Merkle path, and Freighter signing. No backend, no secrets.
+// Deposit posts a commitment = Poseidon(nullifier, secret) and escrows a fixed
+// denomination. Withdraw builds a Merkle path locally, generates a Groth16
+// proof IN THE BROWSER (snarkjs + the Withdraw circuit), and submits it — the
+// pool verifies it on-chain and pays out, revealing only (root, nullifierHash,
+// recipient). No link between deposit and withdrawal.
 
 import {
   rpc,
   TransactionBuilder,
   Contract,
   Address,
+  StrKey,
   xdr,
-  nativeToScVal,
   scValToNative,
   Networks,
   BASE_FEE,
 } from '@stellar/stellar-sdk';
-import {
-  isConnected,
-  requestAccess,
-  getAddress,
-  signTransaction,
-} from '@stellar/freighter-api';
-import { keccak256 } from 'js-sha3';
+import { isConnected, requestAccess, getAddress, signTransaction } from '@stellar/freighter-api';
+import { poseidon1, poseidon2 } from 'poseidon-lite';
 
-// ---- deployed testnet config ----
 export const CONFIG = {
   rpcUrl: 'https://soroban-testnet.stellar.org',
   network: Networks.TESTNET,
-  poolId: 'CABQ33ASB4XAWO32VUHQAEC7EPXJ7ZNVG6OXMLVNUYSOOIZ53UAZTVPA',
-  verifierId: 'CA2W26LBXZ7FZWKKPW4NHTO52AUYWBAT47S2QMMDDEWORFG4RYQKAWIV',
+  poolId: 'CCTFFZ7IYXTVM66OBAUMKHVU2RCDY26NHULIHBWHOIY2UJVNPXJ5LSJC',
+  verifierId: 'CAQWWQ4P7RYGBDRIUQQ7FUXC3SXAHI52YCCQUVCXMNVACNBN52LHMOP7',
   tokenId: 'CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC',
-  denomination: 1_000_000_000n, // 100 XLM (7 decimals)
+  denomination: 100, // XLM (fixed — uniformity is what makes deposits unlinkable)
   depth: 16,
-  // policy bounds proven by the range circuit (denomination sits inside)
-  minAmount: 100_000_000n, // 10 XLM
-  maxAmount: 100_000_000_000n, // 10,000 XLM
   explorer: 'https://stellar.expert/explorer/testnet',
 };
 
+// BN254 scalar field
+const R = 21888242871839275222246405745257275088548364400416034343698204186575808495617n;
 const server = new rpc.Server(CONFIG.rpcUrl);
 
-// ───────────────────────── byte encoding (verified) ─────────────────────────
-// G1/G2 coordinates: big-endian 48 bytes. Fq2 serialized as c1 ‖ c0.
-// Public signals: u32 BE count, each signal 32-byte big-endian.
-
-function be(value: bigint | string, n: number): Uint8Array {
-  let v = typeof value === 'bigint' ? value : BigInt(value);
-  const out = new Uint8Array(n);
-  for (let i = n - 1; i >= 0; i--) {
-    out[i] = Number(v & 0xffn);
-    v >>= 8n;
-  }
-  return out;
+// ── field / byte helpers ──
+function randomField(): bigint {
+  const b = new Uint8Array(31);
+  crypto.getRandomValues(b);
+  let v = 0n;
+  for (const x of b) v = (v << 8n) | BigInt(x);
+  return v % R;
 }
-function concat(arrs: Uint8Array[]): Uint8Array {
-  const len = arrs.reduce((a, b) => a + b.length, 0);
-  const out = new Uint8Array(len);
-  let o = 0;
-  for (const a of arrs) {
-    out.set(a, o);
-    o += a.length;
-  }
-  return out;
+function be(v: bigint, n = 32): Uint8Array {
+  let x = ((v % R) + R) % R;
+  const o = new Uint8Array(n);
+  for (let i = n - 1; i >= 0; i--) { o[i] = Number(x & 0xffn); x >>= 8n; }
+  return o;
 }
-function u32be(n: number): Uint8Array {
-  return new Uint8Array([(n >>> 24) & 255, (n >>> 16) & 255, (n >>> 8) & 255, n & 255]);
+function beAny(v: bigint, n = 32): Uint8Array {
+  let x = v;
+  const o = new Uint8Array(n);
+  for (let i = n - 1; i >= 0; i--) { o[i] = Number(x & 0xffn); x >>= 8n; }
+  return o;
 }
-const g1 = (p: string[]) => concat([be(p[0], 48), be(p[1], 48)]);
-const g2 = (p: string[][]) =>
-  concat([be(p[0][1], 48), be(p[0][0], 48), be(p[1][1], 48), be(p[1][0], 48)]);
-
-export function encodeProof(proof: any): Uint8Array {
-  return concat([g1(proof.pi_a), g2(proof.pi_b), g1(proof.pi_c)]);
+function toHex(b: Uint8Array): string {
+  return Array.from(b).map((x) => x.toString(16).padStart(2, '0')).join('');
 }
-export function encodePublic(signals: string[]): Uint8Array {
-  return concat([u32be(signals.length), ...signals.map((s) => be(s, 32))]);
+function concat(a: Uint8Array[]): Uint8Array {
+  const len = a.reduce((s, x) => s + x.length, 0);
+  const o = new Uint8Array(len);
+  let p = 0;
+  for (const x of a) { o.set(x, p); p += x.length; }
+  return o;
 }
+const scvBytes = (b: Uint8Array) => xdr.ScVal.scvBytes(Buffer.from(b));
 
-// ───────────────────────── proving (snarkjs in browser) ─────────────────────
-
-export interface ProofBundle {
-  proofBytes: Uint8Array;
-  publicBytes: Uint8Array;
-  commitment: bigint;
-  publicSignals: string[];
-}
-
-export async function generateRangeProof(amount: bigint, secret: bigint): Promise<ProofBundle> {
-  const snarkjs = await import('snarkjs');
-  const commitment = amount + secret;
-  const input = {
-    amount: amount.toString(),
-    secret: secret.toString(),
-    min_amount: CONFIG.minAmount.toString(),
-    max_amount: CONFIG.maxAmount.toString(),
-    commitment: commitment.toString(),
-  };
-  const { proof, publicSignals } = await snarkjs.groth16.fullProve(
-    input,
-    '/circuit/RangeProof.wasm',
-    '/circuit/RangeProof_final.zkey'
-  );
-  return {
-    proofBytes: encodeProof(proof),
-    publicBytes: encodePublic(publicSignals),
-    commitment,
-    publicSignals,
-  };
-}
-
-// ───────────────────────── keccak Merkle (matches contract) ─────────────────
-
-const SEED = new TextEncoder().encode('SUIT_ZERO_LEAF_V1______________');
-const kc = (buf: Uint8Array): Uint8Array => new Uint8Array(keccak256.arrayBuffer(buf));
-const pair = (a: Uint8Array, b: Uint8Array) => kc(concat([a, b]));
-
-function zeros(): Uint8Array[] {
-  const z = [kc(SEED)];
-  for (let i = 1; i < CONFIG.depth; i++) z.push(pair(z[i - 1], z[i - 1]));
+// ── Merkle tree (poseidon-lite, matches the on-chain tree) ──
+function zeros(): bigint[] {
+  const z = [0n];
+  for (let i = 1; i <= CONFIG.depth; i++) z.push(poseidon2([z[i - 1], z[i - 1]]));
   return z;
 }
-
-export function buildPath(index: number, leaves: Uint8Array[]) {
+function buildPath(index: number, leaves: bigint[]) {
   const z = zeros();
-  const pathElements: Uint8Array[] = [];
+  const pathElements: bigint[] = [];
   const pathIndices: number[] = [];
   let layer = leaves.slice();
   let idx = index;
-  for (let level = 0; level < CONFIG.depth; level++) {
+  for (let d = 0; d < CONFIG.depth; d++) {
     const isRight = idx % 2 === 1;
-    const siblingIdx = isRight ? idx - 1 : idx + 1;
-    const sibling = siblingIdx < layer.length ? layer[siblingIdx] : z[level];
-    pathElements.push(sibling);
+    const sib = isRight ? layer[idx - 1] : layer[idx + 1];
+    pathElements.push(sib === undefined ? z[d] : sib);
     pathIndices.push(isRight ? 1 : 0);
-    const next: Uint8Array[] = [];
+    const next: bigint[] = [];
     for (let i = 0; i < layer.length; i += 2) {
       const l = layer[i];
-      const r = i + 1 < layer.length ? layer[i + 1] : z[level];
-      next.push(pair(l, r));
+      const r = i + 1 < layer.length ? layer[i + 1] : z[d];
+      next.push(poseidon2([l, r]));
     }
-    layer = next.length ? next : [z[level + 1]];
+    layer = next.length ? next : [z[d + 1]];
     idx = Math.floor(idx / 2);
   }
   return { pathElements, pathIndices };
 }
 
-export function computeRoot(leaf: Uint8Array, pe: Uint8Array[], pi: number[]): Uint8Array {
-  let node = leaf;
-  for (let i = 0; i < CONFIG.depth; i++) {
-    node = pi[i] === 1 ? pair(pe[i], node) : pair(node, pe[i]);
-  }
-  return node;
-}
-
-// ───────────────────────── note + leaf derivation ───────────────────────────
-
+// ── note store (this device is the source of truth for leaves) ──
 export interface Note {
-  amount: string; // decimal string
-  secret: string; // decimal string
-  leafHex: string;
-  nullifierHex: string;
-  leafIndex?: number;
-}
-
-export function deriveNote(amount: bigint, secret: bigint): Omit<Note, 'leafIndex'> {
-  const commitment = amount + secret;
-  const leaf = be(commitment, 32);
-  const nullifier = kc(be(secret, 32));
-  return {
-    amount: amount.toString(),
-    secret: secret.toString(),
-    leafHex: toHex(leaf),
-    nullifierHex: toHex(nullifier),
-  };
-}
-
-export function randomSecret(): bigint {
-  const bytes = new Uint8Array(30);
-  crypto.getRandomValues(bytes);
-  let v = 0n;
-  for (const b of bytes) v = (v << 8n) | BigInt(b);
-  return v;
-}
-
-// ───────────────────────── leaves store (localStorage) ──────────────────────
-// The app is the source of truth for the leaf set (fresh pool, app is the sole
-// depositor). Each successful deposit appends its leaf in index order.
-
-const LEAVES_KEY = 'suit_leaves_v1';
-const NOTES_KEY = 'suit_notes_v1';
-
-export function getStoredLeaves(): string[] {
-  try {
-    return JSON.parse(localStorage.getItem(LEAVES_KEY) || '[]');
-  } catch {
-    return [];
-  }
-}
-function appendLeaf(leafHex: string): number {
-  const leaves = getStoredLeaves();
-  const index = leaves.length;
-  leaves.push(leafHex);
-  localStorage.setItem(LEAVES_KEY, JSON.stringify(leaves));
-  return index;
-}
-
-export interface StoredNote extends Note {
+  nullifier: string;
+  secret: string;
+  commitment: string; // decimal
+  leafIndex: number;
   spent: boolean;
   txHash: string;
   ts: number;
 }
-
-export function getNotes(): StoredNote[] {
-  try {
-    return JSON.parse(localStorage.getItem(NOTES_KEY) || '[]');
-  } catch {
-    return [];
-  }
+const NOTES_KEY = 'suit_v2_notes';
+export function getNotes(): Note[] {
+  try { return JSON.parse(localStorage.getItem(NOTES_KEY) || '[]'); } catch { return []; }
 }
-function addNote(note: StoredNote) {
-  const notes = getNotes();
-  notes.push(note);
-  localStorage.setItem(NOTES_KEY, JSON.stringify(notes));
-}
-function markNoteSpent(leafHex: string) {
-  const notes = getNotes().map((n) => (n.leafHex === leafHex ? { ...n, spent: true } : n));
-  localStorage.setItem(NOTES_KEY, JSON.stringify(notes));
+function saveNotes(n: Note[]) { localStorage.setItem(NOTES_KEY, JSON.stringify(n)); }
+function allLeaves(): bigint[] {
+  return getNotes().sort((a, b) => a.leafIndex - b.leafIndex).map((n) => BigInt(n.commitment));
 }
 
-// ───────────────────────── Freighter wallet ─────────────────────────────────
-
+// ── wallet ──
 export async function connectWallet(): Promise<string> {
   const c = await isConnected();
-  if (!(c as any).isConnected) {
-    throw new Error('Freighter not detected. Install the Freighter extension.');
-  }
-  const access = await requestAccess();
-  if ((access as any).error) throw new Error((access as any).error);
-  return (access as any).address as string;
+  if (!(c as any).isConnected) throw new Error('Freighter not detected. Install the Freighter extension.');
+  const a = await requestAccess();
+  if ((a as any).error) throw new Error((a as any).error);
+  return (a as any).address as string;
 }
-
 export async function getWalletAddress(): Promise<string | null> {
   try {
     const c = await isConnected();
     if (!(c as any).isConnected) return null;
     const a = await getAddress();
     return (a as any).address || null;
-  } catch {
-    return null;
-  }
+  } catch { return null; }
 }
 
-// ───────────────────────── tx helpers ───────────────────────────────────────
-
-const scvBytes = (b: Uint8Array) => xdr.ScVal.scvBytes(Buffer.from(b));
-const hexToBytes = (h: string) => Uint8Array.from(Buffer.from(h.replace(/^0x/, ''), 'hex'));
-function toHex(b: Uint8Array): string {
-  return Array.from(b).map((x) => x.toString(16).padStart(2, '0')).join('');
-}
-
+// ── tx ──
 async function signAndSend(address: string, op: xdr.Operation): Promise<string> {
   const account = await server.getAccount(address);
   const tx = new TransactionBuilder(account, {
-    fee: (Number(BASE_FEE) * 100).toString(),
+    fee: (Number(BASE_FEE) * 1000).toString(),
     networkPassphrase: CONFIG.network,
-  })
-    .addOperation(op)
-    .setTimeout(60)
-    .build();
+  }).addOperation(op).setTimeout(120).build();
 
   const sim = await server.simulateTransaction(tx);
-  if (rpc.Api.isSimulationError(sim)) {
-    throw new Error(`Simulation failed: ${sim.error}`);
-  }
+  if (rpc.Api.isSimulationError(sim)) throw new Error(`Simulation failed: ${sim.error}`);
   const prepared = rpc.assembleTransaction(tx, sim).build();
 
-  const signed = await signTransaction(prepared.toXDR(), {
-    networkPassphrase: CONFIG.network,
-    address,
-  });
+  const signed = await signTransaction(prepared.toXDR(), { networkPassphrase: CONFIG.network, address });
   if ((signed as any).error) throw new Error((signed as any).error);
-
   const signedTx = TransactionBuilder.fromXDR((signed as any).signedTxXdr, CONFIG.network);
   const sent = await server.sendTransaction(signedTx as any);
-  if (sent.status === 'ERROR') {
-    throw new Error(`Submission failed: ${JSON.stringify(sent.errorResult)}`);
-  }
-  for (let i = 0; i < 30; i++) {
+  if (sent.status === 'ERROR') throw new Error(`Submission failed: ${JSON.stringify(sent.errorResult)}`);
+  for (let i = 0; i < 40; i++) {
     await new Promise((r) => setTimeout(r, 1500));
     const got = await server.getTransaction(sent.hash);
     if (got.status === rpc.Api.GetTransactionStatus.SUCCESS) return sent.hash;
-    if (got.status === rpc.Api.GetTransactionStatus.FAILED) {
-      throw new Error(`Transaction failed on-chain (hash ${sent.hash})`);
-    }
+    if (got.status === rpc.Api.GetTransactionStatus.FAILED) throw new Error(`On-chain failure (tx ${sent.hash})`);
   }
   throw new Error('Transaction not confirmed in time');
 }
 
-// ───────────────────────── public actions ───────────────────────────────────
+// ── actions ──
+export interface ShieldResult { txHash: string; note: Note; }
 
-/** Read-only on-chain Groth16 verification (no signing). */
-export async function verifyOnChain(proofBytes: Uint8Array, publicBytes: Uint8Array): Promise<boolean> {
-  const contract = new Contract(CONFIG.verifierId);
-  // Build a throwaway-source tx purely for simulation of a read-only call.
-  const src = await server.getAccount(
-    (await getWalletAddress()) || 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF'
-  ).catch(() => null as any);
-  if (!src) throw new Error('Connect a wallet to run on-chain verify');
-  const tx = new TransactionBuilder(src, {
-    fee: BASE_FEE,
-    networkPassphrase: CONFIG.network,
-  })
-    .addOperation(contract.call('verify', scvBytes(proofBytes), scvBytes(publicBytes)))
-    .setTimeout(30)
-    .build();
-  const sim = await server.simulateTransaction(tx);
-  if (rpc.Api.isSimulationError(sim) || !sim.result) throw new Error('verify simulation failed');
-  return scValToNative(sim.result.retval) as boolean;
-}
-
-export interface DepositResult {
-  txHash: string;
-  note: Note;
-}
-
-/** Shield `amount` (base units): generate a proof, then deposit (ZK-gated). */
-export async function deposit(address: string, amount: bigint): Promise<DepositResult> {
-  const secret = randomSecret();
-  const note = deriveNote(amount, secret);
-  const bundle = await generateRangeProof(amount, secret);
+/** Shield the fixed denomination: post a commitment (no proof at deposit). */
+export async function shield(address: string): Promise<ShieldResult> {
+  const nullifier = randomField();
+  const secret = randomField();
+  const commitment = poseidon2([nullifier, secret]);
+  const leafIndex = getNotes().length;
 
   const contract = new Contract(CONFIG.poolId);
-  const op = contract.call(
-    'deposit',
-    new Address(address).toScVal(),
-    scvBytes(hexToBytes(note.leafHex)),
-    nativeToScVal(amount, { type: 'i128' }),
-    scvBytes(bundle.proofBytes),
-    scvBytes(bundle.publicBytes)
-  );
+  const op = contract.call('deposit', new Address(address).toScVal(), scvBytes(be(commitment)));
   const txHash = await signAndSend(address, op);
-  const leafIndex = appendLeaf(note.leafHex);
-  addNote({ ...note, leafIndex, spent: false, txHash, ts: Date.now() });
-  return { txHash, note: { ...note, leafIndex } };
+
+  const note: Note = {
+    nullifier: nullifier.toString(), secret: secret.toString(),
+    commitment: commitment.toString(), leafIndex, spent: false, txHash, ts: Date.now(),
+  };
+  saveNotes([...getNotes(), note]);
+  return { txHash, note };
 }
 
-/** Withdraw a note to a recipient using a Merkle path + nullifier. */
+/** Withdraw a note to any address — generates the unlinkable ZK proof in-browser. */
 export async function withdraw(
   address: string,
-  note: { amount: string; secret: string },
-  recipient: string
+  note: Note,
+  recipient: string,
+  onStep?: (m: string) => void
 ): Promise<string> {
-  const derived = deriveNote(BigInt(note.amount), BigInt(note.secret));
-  const leaves = getStoredLeaves().map((h) => hexToBytes(h));
-  const leafIndex = getStoredLeaves().indexOf(derived.leafHex);
-  if (leafIndex < 0) throw new Error('Note not found in local leaf set (deposit on this device first)');
+  const snarkjs = await import('snarkjs');
+  const nullifier = BigInt(note.nullifier);
+  const secret = BigInt(note.secret);
+  const nullifierHash = poseidon1([nullifier]);
 
-  const leaf = hexToBytes(derived.leafHex);
-  const { pathElements, pathIndices } = buildPath(leafIndex, leaves);
-  const root = computeRoot(leaf, pathElements, pathIndices);
+  // recipient address → field element (bound into the proof)
+  const raw = StrKey.decodeEd25519PublicKey(recipient);
+  const recipientField = BigInt('0x' + Buffer.from(raw).toString('hex')) % R;
 
+  onStep?.('Rebuilding Merkle path…');
+  const leaves = allLeaves();
+  const { pathElements, pathIndices } = buildPath(note.leafIndex, leaves);
+  // recompute root
+  let cur = BigInt(note.commitment);
+  for (let i = 0; i < CONFIG.depth; i++) {
+    cur = pathIndices[i] === 1 ? poseidon2([pathElements[i], cur]) : poseidon2([cur, pathElements[i]]);
+  }
+  const root = cur;
+
+  onStep?.('Generating zero-knowledge proof in your browser…');
+  const input = {
+    root: root.toString(),
+    nullifierHash: nullifierHash.toString(),
+    recipient: recipientField.toString(),
+    nullifier: nullifier.toString(),
+    secret: secret.toString(),
+    pathElements: pathElements.map((x) => x.toString()),
+    pathIndices: pathIndices.map((x) => x.toString()),
+  };
+  const { proof } = await snarkjs.groth16.fullProve(
+    input,
+    '/circuit-withdraw/Withdraw.wasm',
+    '/circuit-withdraw/Withdraw_final.zkey'
+  );
+
+  // encode proof → BN254 soroban bytes (BE-32, Fq2 = c1||c0)
+  const g1 = (p: string[]) => concat([beAny(BigInt(p[0])), beAny(BigInt(p[1]))]);
+  const g2 = (p: string[][]) =>
+    concat([beAny(BigInt(p[0][1])), beAny(BigInt(p[0][0])), beAny(BigInt(p[1][1])), beAny(BigInt(p[1][0]))]);
+  const proofBytes = concat([g1(proof.pi_a), g2(proof.pi_b), g1(proof.pi_c)]);
+
+  onStep?.('Submitting withdrawal…');
   const contract = new Contract(CONFIG.poolId);
   const op = contract.call(
     'withdraw',
     new Address(recipient).toScVal(),
-    scvBytes(hexToBytes(derived.nullifierHex)),
-    scvBytes(leaf),
-    xdr.ScVal.scvVec(pathElements.map((e) => scvBytes(e))),
-    xdr.ScVal.scvVec(pathIndices.map((i) => nativeToScVal(i, { type: 'u32' }))),
-    scvBytes(root)
+    scvBytes(be(recipientField)),
+    scvBytes(beAny(nullifierHash)),
+    scvBytes(beAny(root)),
+    scvBytes(proofBytes)
   );
   const txHash = await signAndSend(address, op);
-  markNoteSpent(derived.leafHex);
+
+  const notes = getNotes().map((n) => (n.leafIndex === note.leafIndex ? { ...n, spent: true } : n));
+  saveNotes(notes);
   return txHash;
 }
 
 export async function getPoolCount(): Promise<number> {
-  const contract = new Contract(CONFIG.poolId);
-  const src = await server.getAccount(
-    (await getWalletAddress()) || ''
-  ).catch(() => null as any);
-  if (!src) return getStoredLeaves().length;
-  const tx = new TransactionBuilder(src, { fee: BASE_FEE, networkPassphrase: CONFIG.network })
-    .addOperation(contract.call('get_count'))
-    .setTimeout(30)
-    .build();
-  const sim = await server.simulateTransaction(tx);
-  if (rpc.Api.isSimulationError(sim) || !sim.result) return getStoredLeaves().length;
-  return Number(scValToNative(sim.result.retval));
+  try {
+    const contract = new Contract(CONFIG.poolId);
+    const src = await server.getAccount((await getWalletAddress()) || '');
+    const tx = new TransactionBuilder(src, { fee: BASE_FEE, networkPassphrase: CONFIG.network })
+      .addOperation(contract.call('get_count')).setTimeout(30).build();
+    const sim = await server.simulateTransaction(tx);
+    if (rpc.Api.isSimulationError(sim) || !sim.result) return getNotes().length;
+    return Number(scValToNative(sim.result.retval));
+  } catch { return getNotes().length; }
 }
-
-export { toHex };

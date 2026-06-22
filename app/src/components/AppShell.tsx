@@ -28,9 +28,9 @@ export default function AppShell({ onBack }: Props) {
     <div style={{ background: '#0a0a0a', minHeight: '100vh', color: '#fff', fontFamily: 'Inter, sans-serif' }}>
       <div style={{ background: 'rgba(74,222,128,0.06)', borderBottom: '1px solid rgba(255,255,255,0.07)', padding: '8px 28px', fontSize: 11, color: 'rgba(255,255,255,0.5)', textAlign: 'center' }}>
         Live on Stellar testnet — proofs are generated in your browser and verified on-chain.{' '}
-        <a href="https://stellar.expert/explorer/testnet/contract/CABQ33ASB4XAWO32VUHQAEC7EPXJ7ZNVG6OXMLVNUYSOOIZ53UAZTVPA" target="_blank" rel="noreferrer" style={{ color: 'rgba(255,255,255,0.75)' }}>pool</a>
+        <a href="https://stellar.expert/explorer/testnet/contract/CCTFFZ7IYXTVM66OBAUMKHVU2RCDY26NHULIHBWHOIY2UJVNPXJ5LSJC" target="_blank" rel="noreferrer" style={{ color: 'rgba(255,255,255,0.75)' }}>pool</a>
         {' · '}
-        <a href="https://stellar.expert/explorer/testnet/contract/CA2W26LBXZ7FZWKKPW4NHTO52AUYWBAT47S2QMMDDEWORFG4RYQKAWIV" target="_blank" rel="noreferrer" style={{ color: 'rgba(255,255,255,0.75)' }}>verifier</a>
+        <a href="https://stellar.expert/explorer/testnet/contract/CAQWWQ4P7RYGBDRIUQQ7FUXC3SXAHI52YCCQUVCXMNVACNBN52LHMOP7" target="_blank" rel="noreferrer" style={{ color: 'rgba(255,255,255,0.75)' }}>verifier</a>
         . Requires the Freighter wallet on testnet.
       </div>
       {error && (

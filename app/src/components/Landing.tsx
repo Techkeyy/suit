@@ -4,8 +4,8 @@ interface Props {
   onLaunch: () => void;
 }
 
-const POOL = "https://stellar.expert/explorer/testnet/contract/CABQ33ASB4XAWO32VUHQAEC7EPXJ7ZNVG6OXMLVNUYSOOIZ53UAZTVPA";
-const VERIFIER = "https://stellar.expert/explorer/testnet/contract/CA2W26LBXZ7FZWKKPW4NHTO52AUYWBAT47S2QMMDDEWORFG4RYQKAWIV";
+const POOL = "https://stellar.expert/explorer/testnet/contract/CCTFFZ7IYXTVM66OBAUMKHVU2RCDY26NHULIHBWHOIY2UJVNPXJ5LSJC";
+const VERIFIER = "https://stellar.expert/explorer/testnet/contract/CAQWWQ4P7RYGBDRIUQQ7FUXC3SXAHI52YCCQUVCXMNVACNBN52LHMOP7";
 
 const scrollTo = (id: string) => () =>
   document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
@@ -51,9 +51,9 @@ export default function Landing({ onLaunch }: Props) {
           </h1>
 
           <p style={{ fontSize: 16, color: "var(--text-2)", lineHeight: 1.7, maxWidth: 440, marginBottom: 40 }}>
-            A payment pool on Stellar where every deposit is gated by a real
-            zero-knowledge proof — generated in your browser and verified
-            on-chain. No valid proof, no deposit.
+            A shielded pool on Stellar. Deposit, then withdraw with a
+            zero-knowledge proof — paying anyone without revealing which deposit
+            was yours. Unlinkable, and verified on-chain.
           </p>
 
           <div style={{ display: "flex", gap: 14, marginBottom: 52 }}>
@@ -64,10 +64,10 @@ export default function Landing({ onLaunch }: Props) {
           {/* proof pipeline indicator */}
           <div style={{ display: "flex", alignItems: "center", gap: 10, maxWidth: 520 }}>
             {[
-              { label: "Range proof", live: true },
-              { label: "On-chain verify", live: true },
               { label: "Shielded pool", live: true },
-              { label: "Unlinkable", live: false },
+              { label: "ZK withdrawal", live: true },
+              { label: "On-chain verify", live: true },
+              { label: "Unlinkable", live: true },
             ].map((s, i, arr) => (
               <React.Fragment key={s.label}>
                 <div style={{ width: 6, height: 6, borderRadius: "50%", background: s.live ? "var(--accent)" : "var(--border-strong)", flexShrink: 0 }} />
@@ -83,8 +83,8 @@ export default function Landing({ onLaunch }: Props) {
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", borderTop: "1px solid var(--border)", borderBottom: "1px solid var(--border)" }}>
         {[
           { num: "Groth16", label: "ZK system", accent: false, small: true },
-          { num: "On-chain", label: "Proof verified", accent: true, small: true },
-          { num: "BLS12-381", label: "Pairing curve", accent: false, small: true },
+          { num: "Unlinkable", label: "Withdrawals", accent: true, small: true },
+          { num: "BN254", label: "Poseidon · pairing", accent: false, small: true },
           { num: "100%", label: "Non-custodial", accent: false },
         ].map((s, i) => (
           <div key={s.label} style={{ padding: "34px 28px", borderRight: i < 3 ? "1px solid var(--border)" : "none", textAlign: "center" }}>
@@ -100,10 +100,10 @@ export default function Landing({ onLaunch }: Props) {
         <h2 style={{ fontFamily: "var(--font-serif)", fontSize: 46, fontWeight: 300, margin: "16px 0 64px" }}>Four steps to a private, provable payment.</h2>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 1, background: "var(--border)" }}>
           {[
-            { step: "01", title: "Enter an amount", desc: "Your browser turns it into a Circom/Groth16 proof locally, attesting the amount is within policy bounds." },
-            { step: "02", title: "Prove in your browser", desc: "A Circom/Groth16 proof over BLS12-381 is generated locally, proving the amount is within policy bounds — without revealing it." },
-            { step: "03", title: "Pool verifies on-chain", desc: "The pool cross-calls the verifier; the BLS12-381 pairing check must pass before the deposit is accepted. No valid proof, no deposit." },
-            { step: "04", title: "Receiver withdraws", desc: "The receiver withdraws from the pool with a nullifier; double-spends are rejected on-chain. Full unlinkability is on the roadmap." },
+            { step: "01", title: "Shield a deposit", desc: "Your browser makes a secret note and posts only its commitment = Poseidon(nullifier, secret) into an on-chain Merkle tree. A fixed 100 XLM denomination keeps every deposit identical." },
+            { step: "02", title: "Join the pool", desc: "Your commitment sits among everyone else's — all indistinguishable. The chain sees a deposit, but not who you'll pay." },
+            { step: "03", title: "Prove in your browser", desc: "To withdraw, snarkjs builds a Groth16 proof (BN254) that you own some note in the tree, exposing only a one-time nullifier — never which one." },
+            { step: "04", title: "Withdraw unlinkably", desc: "The pool verifies the proof on-chain (BN254 pairing) and pays any address. No on-chain link connects the withdrawal to your deposit. Double-spends are rejected." },
           ].map(item => (
             <div key={item.step} style={{ background: "var(--bg-2)", padding: "40px 30px" }}>
               <div className="num" style={{ fontSize: 40, color: "var(--border-strong)", marginBottom: 22, fontWeight: 600 }}>{item.step}</div>
@@ -148,7 +148,7 @@ export default function Landing({ onLaunch }: Props) {
         </p>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 1, background: "var(--border)" }}>
           {[
-            { tool: "Circom", role: "Range proof", status: "Live on testnet", live: true, desc: "Proves the payment amount is within policy bounds without revealing it. Groth16 proof verified inside a Soroban contract using Stellar's BLS12-381 pairing host functions." },
+            { tool: "Circom", role: "Unlinkable withdrawal", status: "Live on testnet", live: true, desc: "Groth16 proof of Merkle membership + nullifier over BN254, with a Poseidon tree identical on-chain and in-browser. Verified inside a Soroban contract using Stellar's BN254 pairing host functions — so withdrawals reveal nothing about which deposit was spent." },
             { tool: "Noir", role: "KYC identity proof", status: "Roadmap", live: false, desc: "Would prove a sender holds a valid KYC credential without revealing identity. Circuit scaffolded in the repo; no verifier deployed yet." },
             { tool: "RISC Zero", role: "Compliance receipt", status: "Roadmap", live: false, desc: "Would prove full compliance logic ran in a zkVM, verifiable by an auditor on demand. Not included in this build." },
           ].map(item => (
