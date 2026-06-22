@@ -2,8 +2,15 @@ import React, { useState } from 'react';
 import { useWallet } from '../lib/wallet';
 import { CONFIG } from '../lib/suit';
 
+function fmtXlm(balance: string | null): string {
+  if (balance === null) return '—';
+  const n = Number(balance);
+  if (Number.isNaN(n)) return '—';
+  return n.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+}
+
 export default function WalletButton() {
-  const { address, connect, connecting, error, disconnect, modalOpen, openModal, closeModal } = useWallet();
+  const { address, balance, loadingBalance, connect, connecting, error, disconnect, refreshBalance, modalOpen, openModal, closeModal } = useWallet();
   const [copied, setCopied] = useState(false);
 
   const short = (a: string) => `${a.slice(0, 4)}…${a.slice(-4)}`;
@@ -18,10 +25,18 @@ export default function WalletButton() {
   const trigger = address ? (
     <button
       onClick={openModal}
-      style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--surface)', border: '1px solid var(--border-strong)', padding: '7px 14px', borderRadius: 6, cursor: 'pointer' }}
+      style={{ display: 'flex', alignItems: 'center', gap: 0, background: 'var(--surface)', border: '1px solid var(--border-strong)', borderRadius: 7, cursor: 'pointer', overflow: 'hidden' }}
     >
-      <span style={{ width: 7, height: 7, background: 'var(--accent)', borderRadius: '50%', boxShadow: '0 0 8px var(--accent)' }} />
-      <span className="num" style={{ fontSize: 11, color: 'var(--text-1)', letterSpacing: '0.04em' }}>{short(address)}</span>
+      {/* balance pill */}
+      <span className="num" style={{ fontSize: 11.5, color: 'var(--text-1)', fontWeight: 600, padding: '7px 11px', display: 'flex', alignItems: 'center', gap: 5 }}>
+        {loadingBalance && balance === null ? '…' : fmtXlm(balance)}
+        <span style={{ fontSize: 9, letterSpacing: '0.1em', color: 'var(--text-3)' }}>XLM</span>
+      </span>
+      {/* address pill */}
+      <span style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '7px 12px', background: 'var(--bg-2)', borderLeft: '1px solid var(--border-strong)' }}>
+        <span style={{ width: 7, height: 7, background: 'var(--accent)', borderRadius: '50%', boxShadow: '0 0 8px var(--accent)' }} />
+        <span className="num" style={{ fontSize: 11, color: 'var(--text-1)', letterSpacing: '0.04em' }}>{short(address)}</span>
+      </span>
     </button>
   ) : (
     <button className="btn btn-primary" onClick={openModal}>Connect wallet</button>
@@ -46,9 +61,26 @@ export default function WalletButton() {
                   <span className="num" style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--accent)' }}>Connected · Testnet</span>
                 </div>
 
+                {/* balance card */}
+                <div style={{ background: 'var(--bg-2)', border: '1px solid var(--border)', borderRadius: 10, padding: '16px 18px', marginBottom: 16 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                    <span style={{ fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'var(--text-3)' }}>Balance</span>
+                    <button onClick={refreshBalance} title="Refresh"
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--text-3)', padding: 0 }}>
+                      {loadingBalance ? 'Refreshing…' : 'Refresh ↻'}
+                    </button>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+                    <span className="num" style={{ fontSize: 28, fontWeight: 600, color: 'var(--text-1)', lineHeight: 1 }}>
+                      {loadingBalance && balance === null ? '…' : fmtXlm(balance)}
+                    </span>
+                    <span className="num" style={{ fontSize: 12, letterSpacing: '0.12em', color: 'var(--text-3)', textTransform: 'uppercase' }}>XLM</span>
+                  </div>
+                </div>
+
                 <div style={{ fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'var(--text-3)', marginBottom: 8 }}>Address</div>
                 <button onClick={copy} title="Copy"
-                  style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, background: 'var(--bg-2)', border: '1px solid var(--border)', borderRadius: 8, padding: '12px 14px', marginBottom: 18, cursor: 'pointer' }}>
+                  style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, background: 'var(--bg-2)', border: '1px solid var(--border)', borderRadius: 8, padding: '12px 14px', marginBottom: 16, cursor: 'pointer' }}>
                   <span className="num" style={{ fontSize: 12, color: 'var(--text-2)', wordBreak: 'break-all', textAlign: 'left' }}>{address}</span>
                   <span className="num" style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: copied ? 'var(--accent)' : 'var(--text-3)', flexShrink: 0 }}>{copied ? 'Copied' : 'Copy'}</span>
                 </button>
@@ -58,9 +90,14 @@ export default function WalletButton() {
                   View on Stellar Expert ↗
                 </a>
 
-                <button className="btn btn-ghost" style={{ width: '100%' }} onClick={() => { disconnect(); closeModal(); }}>
-                  Disconnect
-                </button>
+                <div style={{ display: 'flex', gap: 10 }}>
+                  <button className="btn btn-ghost" style={{ flex: 1 }} onClick={() => { disconnect(); connect(); }}>
+                    Change wallet
+                  </button>
+                  <button className="btn btn-ghost" style={{ flex: 1 }} onClick={() => { disconnect(); closeModal(); }}>
+                    Disconnect
+                  </button>
+                </div>
               </>
             ) : (
               <>

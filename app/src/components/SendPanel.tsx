@@ -5,7 +5,7 @@ import { shield, CONFIG } from '../lib/suit';
 type Phase = 'idle' | 'working' | 'done' | 'error';
 
 export default function SendPanel() {
-  const { address, openModal } = useWallet();
+  const { address, openModal, refreshBalance } = useWallet();
   const [amount, setAmount] = useState('');
   const [phase, setPhase] = useState<Phase>('idle');
   const [step, setStep] = useState('');
@@ -21,6 +21,7 @@ export default function SendPanel() {
       const res = await shield(address, amount, setStep);
       setTxHash(res.txHash);
       setPhase('done');
+      refreshBalance();
     } catch (e: any) {
       setErr(e.message || String(e));
       setPhase('error');

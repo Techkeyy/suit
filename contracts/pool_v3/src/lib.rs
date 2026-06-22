@@ -58,6 +58,9 @@ pub enum PoolError {
 #[derive(Clone)]
 pub struct TransactEvent {
     pub ext_amount: i128,
+    pub leaf_index: u32, // index of the first inserted output commitment
+    pub out_commitment_0: BytesN<32>,
+    pub out_commitment_1: BytesN<32>,
     pub new_root: BytesN<32>,
     pub timestamp: u64,
 }
@@ -176,9 +179,9 @@ impl SuitPoolV3 {
         }
 
         // effects
-        env.storage().persistent().set(&(symbol_short!("NULL"), nh0), &true);
-        env.storage().persistent().set(&(symbol_short!("NULL"), nh1), &true);
-        insert_leaf(&env, &to_u256(&env, &oc0))?;
+        env.storage().persistent().set(&(symbol_short!("NULL"), nh0.clone()), &true);
+        env.storage().persistent().set(&(symbol_short!("NULL"), nh1.clone()), &true);
+        let leaf_index = insert_leaf(&env, &to_u256(&env, &oc0))?;
         insert_leaf(&env, &to_u256(&env, &oc1))?;
 
         // token movement
@@ -193,7 +196,14 @@ impl SuitPoolV3 {
 
         env.events().publish(
             (symbol_short!("transact"),),
-            TransactEvent { ext_amount, new_root: to_bytes32(&env, &current_root(&env)), timestamp: env.ledger().timestamp() },
+            TransactEvent {
+                ext_amount,
+                leaf_index,
+                out_commitment_0: oc0,
+                out_commitment_1: oc1,
+                new_root: to_bytes32(&env, &current_root(&env)),
+                timestamp: env.ledger().timestamp(),
+            },
         );
         Ok(())
     }

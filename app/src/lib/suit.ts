@@ -3,6 +3,11 @@
 // Deposit any amount. Withdraw any portion. Change returned as a new note.
 // All proven in zero-knowledge (Groth16 BN254) — the chain sees only roots,
 // nullifiers, and commitments; never which deposit funds which withdrawal.
+//
+// The Merkle tree is GLOBAL and on-chain. This client reconstructs the full
+// leaf set from the pool's `transact` events (each carries its output
+// commitments + leaf index), so roots/paths always match the chain even with
+// many depositors. Local storage holds only the secret note material.
 
 import {
   rpc,
@@ -21,9 +26,10 @@ import { poseidon1, poseidon2, poseidon3 } from 'poseidon-lite';
 export const CONFIG = {
   rpcUrl: 'https://soroban-testnet.stellar.org',
   network: Networks.TESTNET,
-  poolId: 'CDCSJMPOU6J6ZRSPFTYTGQELOXQCFG7VHX67RO4O5YDAKLTGFVNSYBXY',
+  poolId: 'CCCL7IDTJOLVFFXHWHC7INSTDJXQS7N2C2F3UY32JCZZGZ3CQMHXKPM3',
   verifierId: 'CDEZRSL6WXBEJZ45WVFDI6DIHJEZ6UEWY3CUJIQPLCQIVUMLXXVKON2T',
   tokenId: 'CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC',
+  startLedger: 3230400, // ~pool deploy ledger (events scanned from here)
   depth: 16,
   decimals: 7,
   explorer: 'https://stellar.expert/explorer/testnet',
@@ -52,6 +58,11 @@ function beRaw(v: bigint, n = 32): Uint8Array {
   const o = new Uint8Array(n);
   for (let i = n - 1; i >= 0; i--) { o[i] = Number(x & 0xffn); x >>= 8n; }
   return o;
+}
+function bytesToBig(b: Uint8Array | number[] | Buffer): bigint {
+  let v = 0n;
+  for (const x of b as Uint8Array) v = (v << 8n) | BigInt(x);
+  return v;
 }
 function concat(arrs: Uint8Array[]): Uint8Array {
   const len = arrs.reduce((s, x) => s + x.length, 0);
@@ -87,6 +98,7 @@ const ZEROS: bigint[] = [0n];
 for (let i = 1; i <= CONFIG.depth; i++) ZEROS.push(poseidon2([ZEROS[i - 1], ZEROS[i - 1]]));
 
 function treeRoot(leaves: bigint[]): bigint {
+  if (leaves.length === 0) return ZEROS[CONFIG.depth];
   let layer = leaves.slice();
   for (let d = 0; d < CONFIG.depth; d++) {
     const next: bigint[] = [];
@@ -123,41 +135,90 @@ function emptyPath(): string[] {
   return ZEROS.slice(0, CONFIG.depth).map(z => z.toString());
 }
 
-// ── UTXO note store ──
+// ── on-chain leaf sync (the global tree, rebuilt from transact events) ──
+//
+// Leaves are indexed by their absolute on-chain leaf index (from the event), so
+// a partial event window still merges correctly. We persist the reconstructed
+// set to localStorage and merge new events on top — the tree therefore survives
+// even after old events age out of the RPC's finite event-retention window.
+const LEAFCACHE_KEY = 'suit_v3_leafcache';
+let leafCacheMem: bigint[] | null = null;
+
+function loadLeafCache(): Map<number, bigint> {
+  const m = new Map<number, bigint>();
+  try {
+    const raw = JSON.parse(localStorage.getItem(LEAFCACHE_KEY) || '{}');
+    for (const k of Object.keys(raw)) m.set(Number(k), BigInt(raw[k]));
+  } catch { /* ignore */ }
+  return m;
+}
+function saveLeafCache(m: Map<number, bigint>) {
+  const obj: Record<string, string> = {};
+  for (const [k, v] of m) obj[k] = v.toString();
+  localStorage.setItem(LEAFCACHE_KEY, JSON.stringify(obj));
+}
+
+export async function syncLeaves(force = false): Promise<bigint[]> {
+  if (leafCacheMem && !force) return leafCacheMem;
+
+  const indexed = loadLeafCache();
+  const filters = [{ type: 'contract' as const, contractIds: [CONFIG.poolId], topics: [['*']] }];
+
+  // Clamp start to the RPC's retention window to avoid "startLedger too old" errors;
+  // any leaves older than the window are already preserved in the local cache.
+  let start = CONFIG.startLedger;
+  try {
+    const latest = (await server.getLatestLedger()).sequence;
+    const minStart = latest - 16000;
+    if (start < minStart) start = minStart;
+  } catch { /* use configured start */ }
+
+  const collect = (events: any[]) => {
+    for (const e of events) {
+      try {
+        const data: any = scValToNative(e.value);
+        if (data && typeof data.leaf_index !== 'undefined' && data.out_commitment_0) {
+          const idx = Number(data.leaf_index);
+          indexed.set(idx, bytesToBig(data.out_commitment_0));
+          indexed.set(idx + 1, bytesToBig(data.out_commitment_1));
+        }
+      } catch { /* not a transact event */ }
+    }
+  };
+
+  let res = await server.getEvents({ startLedger: start, filters, limit: 200 });
+  collect(res.events);
+  while (res.events.length === 200 && (res as any).cursor) {
+    res = await server.getEvents({ filters, limit: 200, cursor: (res as any).cursor } as any);
+    collect(res.events);
+  }
+
+  saveLeafCache(indexed);
+  const maxIdx = indexed.size ? Math.max(...indexed.keys()) : -1;
+  const leaves: bigint[] = [];
+  for (let i = 0; i <= maxIdx; i++) leaves.push(indexed.get(i) ?? ZEROS[0]);
+  leafCacheMem = leaves;
+  return leaves;
+}
+
+// ── UTXO note store (secrets only; tree comes from chain) ──
 export interface UTXONote {
   amount: string;
   privKey: string;
   blinding: string;
-  commitment: string;
-  leafIndex: number;
+  commitment: string; // decimal
+  leafIndex: number;   // best-effort cache; re-derived from chain on spend
   spent: boolean;
   txHash: string;
   ts: number;
 }
 
 const NOTES_KEY = 'suit_v3_notes';
-const LEAVES_KEY = 'suit_v3_leaves';
 
 export function getNotes(): UTXONote[] {
   try { return JSON.parse(localStorage.getItem(NOTES_KEY) || '[]'); } catch { return []; }
 }
 function saveNotes(n: UTXONote[]) { localStorage.setItem(NOTES_KEY, JSON.stringify(n)); }
-function getLeaves(): string[] {
-  try { return JSON.parse(localStorage.getItem(LEAVES_KEY) || '[]'); } catch { return []; }
-}
-function saveLeaves(l: string[]) { localStorage.setItem(LEAVES_KEY, JSON.stringify(l)); }
-function pushLeaves(commitments: bigint[]): number {
-  const leaves = getLeaves();
-  const start = leaves.length;
-  for (const c of commitments) leaves.push(c.toString());
-  saveLeaves(leaves);
-  return start;
-}
-function allLeaves(): bigint[] { return getLeaves().map(s => BigInt(s)); }
-function localRoot(): bigint {
-  const l = allLeaves();
-  return l.length > 0 ? treeRoot(l) : ZEROS[CONFIG.depth];
-}
 
 // ── proof helpers ──
 function dummyInput() {
@@ -190,6 +251,18 @@ export async function getWalletAddress(): Promise<string | null> {
   } catch { return null; }
 }
 
+/** Native XLM balance (whole units, 7-dp string) via Horizon. */
+export async function getXlmBalance(address: string): Promise<string> {
+  const res = await fetch(`https://horizon-testnet.stellar.org/accounts/${address}`);
+  if (!res.ok) {
+    if (res.status === 404) return '0';
+    throw new Error(`Balance lookup failed (${res.status})`);
+  }
+  const data = await res.json();
+  const native = (data.balances || []).find((b: any) => b.asset_type === 'native');
+  return native ? native.balance : '0';
+}
+
 // ── tx submission ──
 async function signAndSend(address: string, op: xdr.Operation): Promise<string> {
   const account = await server.getAccount(address);
@@ -203,7 +276,9 @@ async function signAndSend(address: string, op: xdr.Operation): Promise<string> 
   const prepared = rpc.assembleTransaction(tx, sim).build();
   const signed = await signTransaction(prepared.toXDR(), { networkPassphrase: CONFIG.network, address });
   if ((signed as any).error) throw new Error((signed as any).error);
-  const signedTx = TransactionBuilder.fromXDR((signed as any).signedTxXdr, CONFIG.network);
+  const xdrStr = (signed as any).signedTxXdr;
+  if (!xdrStr) throw new Error('Wallet returned no signed transaction.');
+  const signedTx = TransactionBuilder.fromXDR(xdrStr, CONFIG.network);
   const sent = await server.sendTransaction(signedTx as any);
   if (sent.status === 'ERROR') throw new Error(`Submit: ${JSON.stringify(sent.errorResult)}`);
   for (let i = 0; i < 60; i++) {
@@ -216,18 +291,19 @@ async function signAndSend(address: string, op: xdr.Operation): Promise<string> 
 }
 
 // ── pool queries ──
+async function callView(method: string): Promise<any> {
+  const addr = await getWalletAddress();
+  if (!addr) return null;
+  const contract = new Contract(CONFIG.poolId);
+  const account = await server.getAccount(addr);
+  const tx = new TransactionBuilder(account, { fee: BASE_FEE, networkPassphrase: CONFIG.network })
+    .addOperation(contract.call(method)).setTimeout(30).build();
+  const sim = await server.simulateTransaction(tx);
+  if (rpc.Api.isSimulationError(sim) || !sim.result) return null;
+  return scValToNative(sim.result.retval);
+}
 export async function getPoolCount(): Promise<number> {
-  try {
-    const addr = await getWalletAddress();
-    if (!addr) return 0;
-    const contract = new Contract(CONFIG.poolId);
-    const account = await server.getAccount(addr);
-    const tx = new TransactionBuilder(account, { fee: BASE_FEE, networkPassphrase: CONFIG.network })
-      .addOperation(contract.call('get_count')).setTimeout(30).build();
-    const sim = await server.simulateTransaction(tx);
-    if (rpc.Api.isSimulationError(sim) || !sim.result) return 0;
-    return Number(scValToNative(sim.result.retval));
-  } catch { return 0; }
+  try { return Number(await callView('get_count')) || 0; } catch { return 0; }
 }
 
 // ── actions ──
@@ -241,18 +317,22 @@ export async function shield(
   if (amt <= 0n) throw new Error('Amount must be positive');
 
   const snarkjs = await import('snarkjs');
-  onStep?.('Generating secret note…');
+  onStep?.('Reading pool state…');
 
+  // Deposit inputs are dummies (zero amount), so the proof's root is unconstrained;
+  // the contract only checks the root is known, so use the current on-chain root.
+  const countBefore = await getPoolCount();
+  const rootNative = await callView('get_root');
+  const root = rootNative ? bytesToBig(rootNative) : ZEROS[CONFIG.depth];
+
+  onStep?.('Generating secret note…');
   const priv = randomField(), blinding = randomField();
   const pk = pubKeyOf(priv);
   const outCommit = commitHash(amt, pk, blinding);
-
   const dPriv = randomField(), dBlind = randomField();
   const dPk = pubKeyOf(dPriv);
   const dummyCommit = commitHash(0n, dPk, dBlind);
-
   const inA = dummyInput(), inB = dummyInput();
-  const root = localRoot();
 
   onStep?.('Generating zero-knowledge proof… (~30 s)');
   const { proof } = await snarkjs.groth16.fullProve({
@@ -277,7 +357,7 @@ export async function shield(
     'transact',
     scvBytes(encodeProof(proof)),
     scvBytes(be(root)),
-    nativeToScVal(Number(amt), { type: 'i128' }),
+    nativeToScVal(amt, { type: 'i128' }),
     scvBytes(be(0n)),
     xdr.ScVal.scvVec([scvBytes(be(inA.nullifier)), scvBytes(be(inB.nullifier))]),
     xdr.ScVal.scvVec([scvBytes(be(outCommit)), scvBytes(be(dummyCommit))]),
@@ -285,11 +365,11 @@ export async function shield(
     new Address(address).toScVal(),
   );
   const txHash = await signAndSend(address, op);
+  leafCacheMem = null; // invalidate; tree changed
 
-  const leafIdx = pushLeaves([outCommit, dummyCommit]);
   const note: UTXONote = {
     amount: amt.toString(), privKey: priv.toString(), blinding: blinding.toString(),
-    commitment: outCommit.toString(), leafIndex: leafIdx, spent: false, txHash, ts: Date.now(),
+    commitment: outCommit.toString(), leafIndex: countBefore, spent: false, txHash, ts: Date.now(),
   };
   saveNotes([...getNotes(), note]);
   return { txHash, note };
@@ -308,16 +388,19 @@ export async function withdraw(
   if (wAmt > nAmt) throw new Error('Exceeds note balance');
 
   const snarkjs = await import('snarkjs');
-  onStep?.('Building Merkle proof…');
+  onStep?.('Syncing pool tree from chain…');
 
-  const leaves = allLeaves();
+  const leaves = await syncLeaves(true);
+  const commitment = BigInt(note.commitment);
+  const leafIndex = leaves.findIndex(l => l === commitment);
+  if (leafIndex < 0) throw new Error('Note not found in on-chain tree yet — wait for the deposit to index, then retry.');
+
   const root = treeRoot(leaves);
-  const path = treePath(note.leafIndex, leaves);
+  const path = treePath(leafIndex, leaves);
 
   const priv = BigInt(note.privKey);
-  const commitment = BigInt(note.commitment);
-  const sig = signHash(priv, commitment, BigInt(note.leafIndex));
-  const null0 = nullHash(commitment, BigInt(note.leafIndex), sig);
+  const sig = signHash(priv, commitment, BigInt(leafIndex));
+  const null0 = nullHash(commitment, BigInt(leafIndex), sig);
   const inDummy = dummyInput();
 
   const changeAmt = nAmt - wAmt;
@@ -338,7 +421,7 @@ export async function withdraw(
     inAmount: [nAmt.toString(), '0'],
     inPrivateKey: [priv.toString(), inDummy.priv.toString()],
     inBlinding: [note.blinding, inDummy.blinding.toString()],
-    inPathIndices: [note.leafIndex.toString(), '0'],
+    inPathIndices: [leafIndex.toString(), '0'],
     inPathElements: [path.map(x => x.toString()), inDummy.pathElements],
     outAmount: [changeAmt.toString(), '0'],
     outPubkey: [pubKeyOf(cPriv).toString(), pubKeyOf(zPriv).toString()],
@@ -351,7 +434,7 @@ export async function withdraw(
     'transact',
     scvBytes(encodeProof(proof)),
     scvBytes(be(root)),
-    nativeToScVal(-Number(wAmt), { type: 'i128' }),
+    nativeToScVal(-wAmt, { type: 'i128' }),
     scvBytes(be(0n)),
     xdr.ScVal.scvVec([scvBytes(be(null0)), scvBytes(be(inDummy.nullifier))]),
     xdr.ScVal.scvVec([scvBytes(be(changeCommit)), scvBytes(be(zeroCommit))]),
@@ -359,16 +442,16 @@ export async function withdraw(
     new Address(recipient).toScVal(),
   );
   const txHash = await signAndSend(address, op);
+  leafCacheMem = null;
 
-  const leafIdx = pushLeaves([changeCommit, zeroCommit]);
   const notes = getNotes().map(n =>
-    n.leafIndex === note.leafIndex ? { ...n, spent: true } : n
+    n.commitment === note.commitment ? { ...n, spent: true } : n
   );
   let savedChange: UTXONote | null = null;
   if (changeAmt > 0n) {
     savedChange = {
       amount: changeAmt.toString(), privKey: cPriv.toString(), blinding: cBlind.toString(),
-      commitment: changeCommit.toString(), leafIndex: leafIdx, spent: false, txHash, ts: Date.now(),
+      commitment: changeCommit.toString(), leafIndex: leaves.length, spent: false, txHash, ts: Date.now(),
     };
     notes.push(savedChange);
   }

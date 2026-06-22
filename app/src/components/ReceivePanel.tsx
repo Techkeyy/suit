@@ -5,9 +5,9 @@ import { withdraw, getNotes, CONFIG, UTXONote, stroopsToXlm } from '../lib/suit'
 type Phase = 'idle' | 'working' | 'done' | 'error';
 
 export default function ReceivePanel() {
-  const { address, openModal } = useWallet();
+  const { address, openModal, refreshBalance } = useWallet();
   const [notes, setNotes] = useState<UTXONote[]>(() => getNotes());
-  const [selected, setSelected] = useState<number | null>(null);
+  const [selected, setSelected] = useState<string | null>(null);
   const [amount, setAmount] = useState('');
   const [recipient, setRecipient] = useState('');
   const [phase, setPhase] = useState<Phase>('idle');
@@ -17,7 +17,7 @@ export default function ReceivePanel() {
   const [err, setErr] = useState<string | null>(null);
 
   const unspent = notes.filter(n => !n.spent);
-  const active = unspent.find(n => n.leafIndex === selected) || unspent[0];
+  const active = unspent.find(n => n.commitment === selected) || unspent[0];
   const activeXlm = active ? stroopsToXlm(active.amount) : '0';
 
   async function handleWithdraw() {
@@ -34,12 +34,13 @@ export default function ReceivePanel() {
       const res = await withdraw(address, active, amount, recipient.trim(), m => setLog(l => [...l, m]));
       setTxHash(res.txHash);
       if (res.changeNote) {
-        setChangeInfo(`Change note: ${stroopsToXlm(res.changeNote.amount)} XLM (leaf ${res.changeNote.leafIndex})`);
+        setChangeInfo(`Change note saved: ${stroopsToXlm(res.changeNote.amount)} XLM (spendable)`);
       }
       setNotes(getNotes());
       setSelected(null);
       setAmount('');
       setPhase('done');
+      refreshBalance();
     } catch (e: any) {
       setErr(e.message || String(e));
       setPhase('error');
@@ -47,7 +48,7 @@ export default function ReceivePanel() {
   }
 
   function handleSelectNote(n: UTXONote) {
-    setSelected(n.leafIndex);
+    setSelected(n.commitment);
     setAmount(stroopsToXlm(n.amount));
   }
 
@@ -65,13 +66,13 @@ export default function ReceivePanel() {
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 22 }}>
           {unspent.map(n => {
-            const isActive = active?.leafIndex === n.leafIndex;
+            const isActive = active?.commitment === n.commitment;
             return (
-              <button key={n.leafIndex} onClick={() => handleSelectNote(n)}
+              <button key={n.commitment} onClick={() => handleSelectNote(n)}
                 style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', textAlign: 'left', padding: '14px 16px', background: isActive ? 'var(--accent-dim)' : 'var(--surface)', border: `1px solid ${isActive ? 'var(--accent-border)' : 'var(--border)'}`, borderRadius: 8, cursor: 'pointer' }}>
                 <span>
                   <span className="num" style={{ fontSize: 14, color: 'var(--text-1)', fontWeight: 600 }}>{stroopsToXlm(n.amount)} XLM</span>
-                  <span className="num" style={{ fontSize: 11, color: 'var(--text-3)', marginLeft: 10 }}>leaf {n.leafIndex}</span>
+                  <span className="num" style={{ fontSize: 11, color: 'var(--text-3)', marginLeft: 10 }}>note ·{n.commitment.slice(0, 6)}</span>
                 </span>
                 <span style={{ width: 14, height: 14, borderRadius: '50%', border: `1px solid ${isActive ? 'var(--accent)' : 'var(--border-strong)'}`, background: isActive ? 'var(--accent)' : 'transparent' }} />
               </button>

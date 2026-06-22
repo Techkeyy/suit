@@ -28,7 +28,7 @@ export default function AppShell({ onBack }: Props) {
     <div style={{ background: '#0a0a0a', minHeight: '100vh', color: '#fff', fontFamily: 'Inter, sans-serif' }}>
       <div style={{ background: 'rgba(74,222,128,0.06)', borderBottom: '1px solid rgba(255,255,255,0.07)', padding: '8px 28px', fontSize: 11, color: 'rgba(255,255,255,0.5)', textAlign: 'center' }}>
         Live on Stellar testnet — arbitrary-amount proofs generated in your browser, verified on-chain.{' '}
-        <a href="https://stellar.expert/explorer/testnet/contract/CDCSJMPOU6J6ZRSPFTYTGQELOXQCFG7VHX67RO4O5YDAKLTGFVNSYBXY" target="_blank" rel="noreferrer" style={{ color: 'rgba(255,255,255,0.75)' }}>pool</a>
+        <a href="https://stellar.expert/explorer/testnet/contract/CCCL7IDTJOLVFFXHWHC7INSTDJXQS7N2C2F3UY32JCZZGZ3CQMHXKPM3" target="_blank" rel="noreferrer" style={{ color: 'rgba(255,255,255,0.75)' }}>pool</a>
         {' · '}
         <a href="https://stellar.expert/explorer/testnet/contract/CDEZRSL6WXBEJZ45WVFDI6DIHJEZ6UEWY3CUJIQPLCQIVUMLXXVKON2T" target="_blank" rel="noreferrer" style={{ color: 'rgba(255,255,255,0.75)' }}>verifier</a>
         . Requires the Freighter wallet on testnet.

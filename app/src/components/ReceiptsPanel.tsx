@@ -38,10 +38,10 @@ export default function ReceiptsPanel() {
           </div>
         )}
         {notes.map(n => (
-          <div key={`${n.leafIndex}-${n.commitment.slice(0,8)}`} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 6 }}>
+          <div key={n.commitment} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 6 }}>
             <div>
               <div className="num" style={{ fontSize: 13, color: 'var(--text-1)', fontWeight: 600 }}>{stroopsToXlm(n.amount)} XLM</div>
-              <div className="num" style={{ fontSize: 10, color: 'var(--text-3)', marginTop: 4 }}>leaf {n.leafIndex} · {new Date(n.ts).toLocaleString()}</div>
+              <div className="num" style={{ fontSize: 10, color: 'var(--text-3)', marginTop: 4 }}>note ·{n.commitment.slice(0, 8)} · {new Date(n.ts).toLocaleString()}</div>
             </div>
             <span className="num" style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: n.spent ? 'var(--text-3)' : 'var(--accent)', background: n.spent ? 'var(--surface-2)' : 'var(--accent-dim)', border: `1px solid ${n.spent ? 'var(--border-strong)' : 'var(--accent-border)'}`, padding: '3px 10px', borderRadius: 2 }}>
               {n.spent ? 'Spent' : 'In pool'}

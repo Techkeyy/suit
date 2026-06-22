@@ -21,7 +21,7 @@ pairing host functions. No valid proof → no withdrawal.
 
 | Contract | ID |
 |---|---|
-| Pool v3 (arbitrary-amount UTXO) | [`CDCSJMPO…SYBXY`](https://stellar.expert/explorer/testnet/contract/CDCSJMPOU6J6ZRSPFTYTGQELOXQCFG7VHX67RO4O5YDAKLTGFVNSYBXY) |
+| Pool v3 (arbitrary-amount UTXO) | [`CCCL7IDT…KPM3`](https://stellar.expert/explorer/testnet/contract/CCCL7IDTJOLVFFXHWHC7INSTDJXQS7N2C2F3UY32JCZZGZ3CQMHXKPM3) |
 | BN254 Groth16 verifier (TX circuit) | [`CDEZRSL6…KON2T`](https://stellar.expert/explorer/testnet/contract/CDEZRSL6WXBEJZ45WVFDI6DIHJEZ6UEWY3CUJIQPLCQIVUMLXXVKON2T) |
 | Token (native XLM SAC) | `CDLZFC3S…CYSC` |
 
