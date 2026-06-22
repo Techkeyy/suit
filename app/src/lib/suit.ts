@@ -141,7 +141,8 @@ function emptyPath(): string[] {
 // a partial event window still merges correctly. We persist the reconstructed
 // set to localStorage and merge new events on top — the tree therefore survives
 // even after old events age out of the RPC's finite event-retention window.
-const LEAFCACHE_KEY = 'suit_v3_leafcache';
+// Namespaced by pool id so a previous pool deployment's cache never poisons a new one.
+const LEAFCACHE_KEY = `suit_leafcache_${CONFIG.poolId.slice(0, 8)}`;
 let leafCacheMem: bigint[] | null = null;
 
 function loadLeafCache(): Map<number, bigint> {
@@ -213,7 +214,7 @@ export interface UTXONote {
   ts: number;
 }
 
-const NOTES_KEY = 'suit_v3_notes';
+const NOTES_KEY = `suit_notes_${CONFIG.poolId.slice(0, 8)}`;
 
 export function getNotes(): UTXONote[] {
   try { return JSON.parse(localStorage.getItem(NOTES_KEY) || '[]'); } catch { return []; }
