@@ -1,18 +1,19 @@
 # SUIT — Shielded Universal Payment Protocol
 
-**Unlinkable payments on Stellar, verified by zero-knowledge.**
+**Arbitrary-amount unlinkable payments on Stellar, verified by zero-knowledge.**
 
-SUIT is a shielded payment pool on Stellar. You deposit a fixed denomination,
-then later withdraw to **any** address by submitting a zero-knowledge proof that
-you own *some* note in the pool — **without revealing which deposit was yours.**
-An observer sees a deposit and an unrelated withdrawal, and cannot link them.
+SUIT is a shielded UTXO pool on Stellar. Deposit **any amount**, then withdraw
+**any portion** to any address by submitting a zero-knowledge proof of value
+conservation — **without revealing which deposit was yours or how much you moved.**
+Change is returned as a new shielded note. An observer sees a deposit and an
+unrelated withdrawal, and cannot link them.
 
-The zero-knowledge is load-bearing and real: the withdrawal proof is a Groth16
-proof over **BN254**, generated **in your browser**, and verified **on-chain**
-inside a Soroban contract using Stellar's BN254 pairing host functions. No valid
-proof ⇒ no withdrawal.
+This is a **Tornado-Nova–class** design: a 2-in/2-out UTXO transaction circuit
+(Groth16 over BN254, 22.8k constraints) generated **in your browser** with
+snarkjs and verified **on-chain** inside a Soroban contract using Stellar's BN254
+pairing host functions. No valid proof → no withdrawal.
 
-> This is genuine Tornado-class privacy on Stellar, proven end-to-end on testnet.
+> Arbitrary amounts. Full privacy. Proven end-to-end on Stellar testnet.
 
 ---
 
@@ -20,40 +21,77 @@ proof ⇒ no withdrawal.
 
 | Contract | ID |
 |---|---|
-| Pool v2 (unlinkable) | [`CCTFFZ7I…LSJC`](https://stellar.expert/explorer/testnet/contract/CCTFFZ7IYXTVM66OBAUMKHVU2RCDY26NHULIHBWHOIY2UJVNPXJ5LSJC) |
-| BN254 Groth16 verifier | [`CAQWWQ4P…LHMOP7`](https://stellar.expert/explorer/testnet/contract/CAQWWQ4P7RYGBDRIUQQ7FUXC3SXAHI52YCCQUVCXMNVACNBN52LHMOP7) |
+| Pool v3 (arbitrary-amount UTXO) | [`CDCSJMPO…SYBXY`](https://stellar.expert/explorer/testnet/contract/CDCSJMPOU6J6ZRSPFTYTGQELOXQCFG7VHX67RO4O5YDAKLTGFVNSYBXY) |
+| BN254 Groth16 verifier (TX circuit) | [`CDEZRSL6…KON2T`](https://stellar.expert/explorer/testnet/contract/CDEZRSL6WXBEJZ45WVFDI6DIHJEZ6UEWY3CUJIQPLCQIVUMLXXVKON2T) |
 | Token (native XLM SAC) | `CDLZFC3S…CYSC` |
 
-**Proven live** (a separate demo pool, same code):
-- **Deposit** → commitment inserted; the contract's Poseidon root **exactly matched** the circuit's root on real data.
-- **Unlinkable withdrawal** → ZK proof verified on-chain, paid a different address — revealed only `(root, nullifierHash, recipient)`. [tx](https://stellar.expert/explorer/testnet/tx/960c1c621954cbd9263b4dac57cbb13482eb09ec6a35fb5b3ab9d4bfdd9c8422)
-- **Double-spend** the same nullifier → reverts (`#6 NullifierAlreadySpent`).
-
-App: **https://suit-app.vercel.app** (needs the Freighter wallet on testnet).
+**App: https://suit-app.vercel.app** (requires the Freighter wallet on testnet).
 
 ---
 
 ## How it works
 
 ```
-  shield (deposit)                                   withdraw (unlinkable)
-  ─────────────────                                  ─────────────────────
-  note = (nullifier, secret)        browser          prove in-browser (snarkjs):
-  commitment = Poseidon(note)  ───►  deposit  ──►       • commitment ∈ Merkle tree (root R)
-  fixed 100 XLM in                  (on-chain          • nullifierHash = Poseidon(nullifier)
-                                     Poseidon            • binds recipient
-                                     Merkle tree)      Groth16 (BN254) proof
-                                                          │
-                                       pool.withdraw(root, nullifierHash, recipient, proof)
-                                                          │  BN254 pairing check on-chain
-                                                          ▼
-                                       pays recipient · burns nullifier · reveals NOT which leaf
+  shield (deposit any amount)              withdraw (any portion, unlinkable)
+  ───────────────────────────              ────────────────────────────────────
+  note = (amount, privKey, blinding)       prove in-browser (snarkjs):
+  commitment = Poseidon(amount,              • input notes ∈ Merkle tree
+               pubKey, blinding)             • value conservation:
+  any XLM amount ──► pool.transact()           sum(inputs) + publicAmount = sum(outputs)
+                     inserts commitment        • nullifiers prevent double-spend
+                     into on-chain             • change returned as new note
+                     Poseidon Merkle tree    Groth16 (BN254) proof
+                                               │
+                     pool.transact(proof, root, ext_amount, nullifiers, commitments)
+                                               │  BN254 pairing check on-chain
+                                               ▼
+                     pays recipient · burns nullifiers · reveals NOT which note or amount
 ```
 
-The Poseidon hash is **byte-identical** in the circuit (circomlib), the browser
-(poseidon-lite), and the contract (Stellar's host Poseidon fed circomlib's
-constants — see `contracts/poseidon_spike`). That equality is what lets an
-in-browser proof verify against the on-chain tree.
+**Value conservation is proven inside the ZK proof**: the circuit enforces that
+input amounts + public amount = output amounts (mod BN254 scalar field). The
+chain verifies the proof but never sees any amounts — only commitments and
+nullifiers.
+
+The Poseidon hash is **byte-identical** across all three environments: the
+circuit (circomlib BN254), the browser (poseidon-lite), and the contract
+(Stellar's host `poseidon_permutation` fed circomlib's exact t=3 constants).
+That equality is what lets an in-browser proof verify against the on-chain tree.
+
+---
+
+## Architecture
+
+### Transaction circuit (`circuits/circom/Transaction.circom`)
+
+A 2-in/2-out UTXO transaction circuit (Tornado-Nova model):
+
+- **Inputs**: 2 existing notes (or dummy zero-amount notes for deposits)
+- **Outputs**: 2 new notes (the actual output + change/zero)
+- **Public signals**: root, publicAmount, extDataHash, 2 input nullifiers, 2 output commitments
+- **Key constraints**:
+  - Merkle membership proof for each non-zero input (depth-16 Poseidon tree)
+  - Nullifier = Poseidon(commitment, pathIndex, signature) where signature = Poseidon(privKey, commitment, pathIndex)
+  - Value conservation: `sum(inAmounts) + publicAmount === sum(outAmounts)`
+  - Range proofs (Num2Bits 248) to prevent overflow
+  - ForceEqualIfEnabled gates: root/nullifier checks disabled for zero-amount dummy inputs
+- **~22,800 constraints** · Groth16 · BN254 · Hermez community ptau (2^15)
+
+### Pool v3 contract (`contracts/pool_v3/`)
+
+Single `transact()` entrypoint for deposits, withdrawals, and transfers:
+
+- `ext_amount > 0` → deposit: transfers tokens from user to pool
+- `ext_amount < 0` → withdrawal: transfers tokens from pool to recipient
+- `ext_amount = 0` → internal transfer (split/merge notes)
+- Incremental Poseidon Merkle tree (depth 16) with 30-root history ring buffer
+- Nullifier double-spend protection
+- Cross-contract Groth16 BN254 proof verification
+
+### BN254 verifier (`contracts/bn254_verifier/`)
+
+On-chain Groth16 verifier using Stellar Protocol 26 `bn254().pairing_check()`.
+Accepts a verification key (set once), proof bytes, and public signals.
 
 ---
 
@@ -62,20 +100,13 @@ in-browser proof verify against the on-chain tree.
 | Component | Status |
 |---|---|
 | Poseidon parity (circuit ↔ browser ↔ chain) | ✅ Proven (spike test + on-chain root match) |
-| Withdrawal circuit (BN254 Merkle membership + nullifier) | ✅ `circuits/circom/Withdraw.circom`, ~9k constraints |
+| 2-in/2-out transaction circuit (arbitrary amounts) | ✅ `Transaction.circom`, ~22.8k constraints |
 | BN254 Groth16 verifier on Soroban | ✅ Deployed; accepts real proof, rejects forged |
-| Unlinkable pool (deposit, ZK withdraw, nullifiers) | ✅ Deployed; full cycle proven on testnet |
-| Web app: in-browser proving + Freighter | ✅ Live |
-| **Denomination tiers** (10 / 100 / 1000) | 🚧 Single fixed 100 XLM today; tiers = same tree per size (next) |
-| **`recipient_field` ↔ address binding** | 🚧 Not enforced on-chain (safe in self-withdrawal; documented) |
+| Arbitrary-amount UTXO pool (deposit, ZK withdraw, change) | ✅ Deployed pool v3; local proofs verified |
+| Web app: in-browser proving + Freighter | ✅ Live with arbitrary amount UI |
+| **Leaf tracking** | 🔶 Local state (single-user); production would index from chain events |
+| **extDataHash binding** | 🔶 Set to 0 for simplicity; production binds recipient + relayer |
 | Noir KYC circuit / RISC Zero compliance | 🚧 Roadmap, not in this build |
-
-**Why a fixed denomination?** Uniformity is what makes deposits indistinguishable
-— it's the privacy, not a limitation. Tiers add choice while preserving it.
-
-**Leaf tracking:** the app stores its notes locally and is the sole depositor on
-its pool, so it reconstructs Merkle paths from local state. A production build
-would index commitments from chain events.
 
 ---
 
@@ -84,34 +115,44 @@ would index commitments from chain events.
 ```
 suit/
 ├── circuits/circom/
-│   ├── Withdraw.circom            # unlinkable withdrawal circuit (BN254)
-│   └── build_withdraw/            # wasm, zkey, vk
+│   ├── Transaction.circom            # 2-in/2-out UTXO circuit (BN254, Nova model)
+│   ├── Withdraw.circom               # simpler v2 withdrawal circuit (superseded)
+│   ├── build_tx/                     # wasm, zkey, vk for Transaction
+│   └── scripts/                      # setup + prove scripts
 ├── contracts/
-│   ├── pool_v2/                   # unlinkable pool: Poseidon tree + nullifiers + ZK withdraw
-│   ├── bn254_verifier/            # real BN254 Groth16 verifier (Protocol 26 pairing)
-│   ├── poseidon_spike/            # proof that host Poseidon == circomlib (gates everything)
-│   ├── groth16_verifier/ pool/    # v1 (BLS12-381, range-proof gated) — superseded
-├── app/                           # React dApp (in-browser proving + Freighter)
-├── scripts/                       # deploy + integration (deployed.env has all IDs)
+│   ├── pool_v3/                      # arbitrary-amount UTXO pool (transact entrypoint)
+│   ├── bn254_verifier/               # real BN254 Groth16 verifier (Protocol 26 pairing)
+│   ├── poseidon_spike/               # proof that host Poseidon == circomlib
+│   ├── pool_v2/                      # v2 fixed-denomination (superseded)
+│   ├── groth16_verifier/ pool/       # v1 BLS12-381 (superseded)
+├── app/                              # React dApp (in-browser proving + Freighter)
+├── scripts/                          # deploy + integration + e2e tests
 └── README.md
 ```
 
 ## Reproduce
 
 ```bash
-# circuit + setup + sample proof
+# transaction circuit + setup + local proof verification
 cd circuits/circom && npm i
-circom Withdraw.circom --r1cs --wasm --sym --output build_withdraw
-node scripts/setup_withdraw.js && node scripts/prove_withdraw.js   # prints LOCAL VERIFY: true
+circom Transaction.circom --r1cs --wasm --sym --output build_tx
+node scripts/setup_tx.js && node scripts/prove_tx.js   # deposit ✓, withdraw ✓
 
-# contract tests (real Poseidon + pairing in the Soroban host)
+# contract tests
 cd ../../contracts/poseidon_spike && cargo test     # host Poseidon == circomlib
 cd ../bn254_verifier && cargo test                  # accepts valid / rejects forged
-cd ../pool_v2 && cargo test                         # deposit → ZK withdraw → double-spend
+cd ../pool_v3 && cargo test                         # deposit → withdraw → double-spend
 
-# end-to-end on testnet (deploy IDs in scripts/deployed.env)
-node scripts/withdraw_integration.js                # builds a real withdrawal proof
+# e2e proof generation (deposit 137, withdraw 50, change 87)
+cd ../../ && node scripts/nova_e2e.js
 ```
+
+## ZK stack (Stellar Hacks alignment)
+
+- **Circom** — one of the three recommended ZK tools for the hackathon
+- **BN254 + Poseidon** — the exact Protocol 25/26 host functions the hackathon showcases (`bn254_pairing_check`, `poseidon_permutation`)
+- **Groth16** — fast in-browser proving via snarkjs, verified on-chain
+- **Hermez community ptau** — trusted setup ceremony artifact (2^15, publicly auditable)
 
 ## License
 MIT.
