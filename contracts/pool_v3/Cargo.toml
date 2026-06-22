@@ -1,0 +1,27 @@
+[package]
+name = "suit-pool-v3"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+# Unlinkable shielded pool: Poseidon Merkle tree (host, circomlib-compatible),
+# nullifier set, and a ZK withdrawal verified by the BN254 verifier. Withdrawals
+# reveal only (root, nullifierHash, recipient) — never which deposit is spent.
+
+[dependencies]
+soroban-sdk = { version = "26", features = ["hazmat-crypto"] }
+
+[dev-dependencies]
+soroban-sdk = { version = "26", features = ["testutils", "hazmat-crypto"] }
+
+[profile.release]
+opt-level = "z"
+overflow-checks = true
+debug = 0
+strip = "symbols"
+debug-assertions = false
+panic = "abort"
+codegen-units = 1
+lto = true
