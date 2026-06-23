@@ -329,10 +329,37 @@ async function signAndSend(
     }
   }
   if (!toSubmit) {
+    // The signature doesn't match the (correct) testnet hash of an unmodified
+    // envelope. Pin the real cause: wrong account, wrong network, or a wallet
+    // re-simulation divergence — and tell the user exactly what to fix.
+    const srcHint = Keypair.fromPublicKey(address).rawPublicKey().slice(-4).toString('hex').toUpperCase();
+    const sigHints = sigs.map((ds: any) => Buffer.from(ds.hint()).toString('hex').toUpperCase());
+    const hintMatches = sigHints.includes(srcHint);
+
+    let signedForNetwork = '';
+    for (const [label, pass] of [['Mainnet (Public)', Networks.PUBLIC], ['Futurenet', 'Test SDF Future Network ; October 2022']] as [string, string][]) {
+      const h = (TransactionBuilder.fromXDR(returned.toXDR(), pass) as any).hash();
+      if (sigs.some((ds: any) => srcKp.verify(h, ds.signature()))) { signedForNetwork = label; break; }
+    }
+
+    const short = `${address.slice(0, 4)}…${address.slice(-4)}`;
+    if (!hintMatches) {
+      throw new Error(
+        `Freighter signed with a different account (key …${sigHints[0] || '????'}) than this transaction's source (…${srcHint}). ` +
+        `Open Freighter, switch the active account to ${short}, and retry. ` +
+        `If you have multiple wallet extensions, make sure Freighter — not another wallet — handled the prompt.`,
+      );
+    }
+    if (signedForNetwork) {
+      throw new Error(
+        `Freighter signed this for ${signedForNetwork}, but the pool is on Testnet. ` +
+        `Open Freighter → network dropdown → select "Test Net", then retry.`,
+      );
+    }
     throw new Error(
-      `Freighter's signature does not authenticate this transaction ` +
-      `(prepared ${preparedHash.toString('hex').slice(0, 12)} / returned ${returnedHash.toString('hex').slice(0, 12)}). ` +
-      `Update Freighter to the latest version, ensure it is on Testnet, and retry.`,
+      `Freighter's signature matches your account but no known network for this exact transaction ` +
+      `(hash ${preparedHash.toString('hex').slice(0, 12)}). This is a Freighter signing divergence — ` +
+      `update Freighter to the latest version and retry; if it persists, report this hash.`,
     );
   }
 
@@ -374,6 +401,10 @@ export async function shield(
 ): Promise<{ txHash: string; note: UTXONote }> {
   const amt = xlmToStroops(amountXLM);
   if (amt <= 0n) throw new Error('Amount must be positive');
+
+  // Use Freighter's *current* active account as the funds source/signer, so a
+  // stale UI address can't desync the tx source from whoever signs the prompt.
+  address = (await getWalletAddress()) || address;
 
   const snarkjs = await import('snarkjs');
   onStep?.('Reading pool state…');
@@ -445,6 +476,10 @@ export async function withdraw(
   const nAmt = BigInt(note.amount);
   if (wAmt <= 0n) throw new Error('Amount must be positive');
   if (wAmt > nAmt) throw new Error('Exceeds note balance');
+
+  // Submit/sign with Freighter's *current* active account (the note's secret is
+  // independent of who submits), so source and signer can't desync.
+  address = (await getWalletAddress()) || address;
 
   const snarkjs = await import('snarkjs');
   onStep?.('Syncing pool tree from chain…');
