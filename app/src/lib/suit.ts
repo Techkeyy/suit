@@ -26,10 +26,10 @@ import { poseidon1, poseidon2, poseidon3 } from 'poseidon-lite';
 export const CONFIG = {
   rpcUrl: 'https://soroban-testnet.stellar.org',
   network: Networks.TESTNET,
-  poolId: 'CCCL7IDTJOLVFFXHWHC7INSTDJXQS7N2C2F3UY32JCZZGZ3CQMHXKPM3',
+  poolId: 'CAXFFBZHC7CFYFOQSMV57TAY2CEO6Y2GMOQKLKSERD4O4DBMLFSMDA63',
   verifierId: 'CDEZRSL6WXBEJZ45WVFDI6DIHJEZ6UEWY3CUJIQPLCQIVUMLXXVKON2T',
   tokenId: 'CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC',
-  startLedger: 3230400, // ~pool deploy ledger (events scanned from here)
+  startLedger: 3236050, // ~pool deploy ledger (events scanned from here)
   depth: 16,
   decimals: 7,
   explorer: 'https://stellar.expert/explorer/testnet',

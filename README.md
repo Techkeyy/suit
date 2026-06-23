@@ -21,7 +21,7 @@ pairing host functions. No valid proof → no withdrawal.
 
 | Contract | ID |
 |---|---|
-| Pool v3 (arbitrary-amount UTXO) | [`CCCL7IDT…KPM3`](https://stellar.expert/explorer/testnet/contract/CCCL7IDTJOLVFFXHWHC7INSTDJXQS7N2C2F3UY32JCZZGZ3CQMHXKPM3) |
+| Pool v3 (arbitrary-amount UTXO) | [`CAXFFBZH…DA63`](https://stellar.expert/explorer/testnet/contract/CAXFFBZHC7CFYFOQSMV57TAY2CEO6Y2GMOQKLKSERD4O4DBMLFSMDA63) |
 | BN254 Groth16 verifier (TX circuit) | [`CDEZRSL6…KON2T`](https://stellar.expert/explorer/testnet/contract/CDEZRSL6WXBEJZ45WVFDI6DIHJEZ6UEWY3CUJIQPLCQIVUMLXXVKON2T) |
 | Token (native XLM SAC) | `CDLZFC3S…CYSC` |
 
@@ -104,8 +104,10 @@ Accepts a verification key (set once), proof bytes, and public signals.
 | BN254 Groth16 verifier on Soroban | ✅ Deployed; accepts real proof, rejects forged |
 | Arbitrary-amount UTXO pool (deposit, ZK withdraw, change) | ✅ Deployed pool v3; local proofs verified |
 | Web app: in-browser proving + Freighter | ✅ Live with arbitrary amount UI |
-| **Leaf tracking** | 🔶 Local state (single-user); production would index from chain events |
+| Global tree sync from chain events | ✅ App rebuilds the full leaf set from `transact` events (works with many depositors) |
+| Wallet-compatible withdraw auth | ✅ `transact` requires the submitter's auth, so every tx carries a SourceAccount entry wallets can sign |
 | **extDataHash binding** | 🔶 Set to 0 for simplicity; production binds recipient + relayer |
+| **Event-retention window** | 🔶 Leaves cached locally + merged; a production indexer would remove reliance on RPC event retention |
 | Noir KYC circuit / RISC Zero compliance | 🚧 Roadmap, not in this build |
 
 ---

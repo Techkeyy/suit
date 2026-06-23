@@ -184,11 +184,18 @@ impl SuitPoolV3 {
         let leaf_index = insert_leaf(&env, &to_u256(&env, &oc0))?;
         insert_leaf(&env, &to_u256(&env, &oc1))?;
 
+        // Always require the submitter's authorization. For deposits this also
+        // gates pulling their tokens; for withdrawals/transfers it carries no
+        // token cost but ensures the transaction holds a SourceAccount auth entry
+        // — which wallets (e.g. Freighter) need to sign the Soroban invocation
+        // correctly. Unlinkability is unaffected: the proof never reveals which
+        // note is spent, only the submitter (who is already the public tx source).
+        account.require_auth();
+
         // token movement
         let token_addr: Address = env.storage().instance().get(&TOKEN).unwrap();
         let tkn = token::Client::new(&env, &token_addr);
         if ext_amount > 0 {
-            account.require_auth();
             tkn.transfer(&account, &env.current_contract_address(), &ext_amount);
         } else if ext_amount < 0 {
             tkn.transfer(&env.current_contract_address(), &recipient, &(-ext_amount));
