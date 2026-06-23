@@ -28,3 +28,7 @@ Thumbs.db
 
 # large powers-of-tau (regenerable; not needed at runtime)
 *.ptau
+
+# local editor / preview configs (machine-specific)
+.claude/
+**/.claude/

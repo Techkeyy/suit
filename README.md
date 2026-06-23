@@ -21,9 +21,10 @@ pairing host functions. No valid proof → no withdrawal.
 
 | Contract | ID |
 |---|---|
-| Pool v3 (arbitrary-amount UTXO) | [`CAXFFBZH…DA63`](https://stellar.expert/explorer/testnet/contract/CAXFFBZHC7CFYFOQSMV57TAY2CEO6Y2GMOQKLKSERD4O4DBMLFSMDA63) |
+| Pool — XLM (arbitrary-amount UTXO) | [`CDGGJTTW…PPX6X`](https://stellar.expert/explorer/testnet/contract/CDGGJTTWSOGHKO6GCZTZQUIO4U2Y5PUQOSAWESGUUC74QUXDHGIPPX6X) |
+| Pool — USDC (arbitrary-amount UTXO) | [`CARK2WXV…D4GS`](https://stellar.expert/explorer/testnet/contract/CARK2WXVBDREA3ARTCGCRHHDXDG4YXSZSU52QIL6BPVPRBV6TTJXD4GS) |
 | BN254 Groth16 verifier (TX circuit) | [`CDEZRSL6…KON2T`](https://stellar.expert/explorer/testnet/contract/CDEZRSL6WXBEJZ45WVFDI6DIHJEZ6UEWY3CUJIQPLCQIVUMLXXVKON2T) |
-| Token (native XLM SAC) | `CDLZFC3S…CYSC` |
+| Asset contracts (SACs) | XLM `CDLZFC3S…CYSC` · test-USDC `CDCFQVDH…MASU` |
 
 **App: https://suit-app.vercel.app** (requires the Freighter wallet on testnet).
 
@@ -87,6 +88,8 @@ Single `transact()` entrypoint for deposits, withdrawals, and transfers:
 - Incremental Poseidon Merkle tree (depth 16) with 30-root history ring buffer
 - Nullifier double-spend protection
 - Cross-contract Groth16 BN254 proof verification
+- **Recipient binding**: recomputes `extDataHash = keccak256(recipient‖relayer‖fee)` (low 31 bytes) and passes it as a public signal, so a relayer cannot redirect funds or alter the fee without invalidating the proof
+- Asset-agnostic: the SAC address is set at init, so the same code backs both the XLM and USDC pools
 
 ### BN254 verifier (`contracts/bn254_verifier/`)
 
@@ -106,7 +109,9 @@ Accepts a verification key (set once), proof bytes, and public signals.
 | Web app: in-browser proving + Freighter | ✅ Live with arbitrary amount UI |
 | Global tree sync from chain events | ✅ App rebuilds the full leaf set from `transact` events (works with many depositors) |
 | Wallet-compatible withdraw auth | ✅ `transact` requires the submitter's auth, so every tx carries a SourceAccount entry wallets can sign |
-| **extDataHash binding** | 🔶 Set to 0 for simplicity; production binds recipient + relayer |
+| **extDataHash recipient binding** | ✅ On-chain: the contract recomputes `keccak256(recipient‖relayer‖fee)` (low 31 bytes) and feeds it to the verifier — tampering the recipient fails as `InvalidProof` |
+| **Non-custodial relayer** | ✅ Withdrawals submitted from a relayer account (your wallet never appears on-chain); recipient is proof-bound, so the relayer cannot redirect funds |
+| **Multi-asset pools** | ✅ Asset-agnostic pool deployed twice (XLM + test-USDC) with a self-serve faucet for each |
 | **Event-retention window** | 🔶 Leaves cached locally + merged; a production indexer would remove reliance on RPC event retention |
 | Noir KYC circuit / RISC Zero compliance | 🚧 Roadmap, not in this build |
 
