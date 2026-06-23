@@ -55,7 +55,7 @@ export default function SendPanel() {
   const sym = getActiveToken().sym;
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, background: 'var(--border)' }}>
+    <div className="shield-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, background: 'var(--border)' }}>
       <div style={{ background: 'var(--bg-2)', padding: 28 }}>
         <div className="eyebrow" style={{ marginBottom: 24, display: 'flex', alignItems: 'center', gap: 8 }}>
           Shield funds <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />

@@ -180,3 +180,47 @@ section[id], div[id] { scroll-margin-top: var(--nav-h); }
 ::-webkit-scrollbar { width: 4px; }
 ::-webkit-scrollbar-track { background: var(--bg); }
 ::-webkit-scrollbar-thumb { background: var(--border-strong); }
+
+/* ---- mobile ---- */
+@media (max-width: 640px) {
+  :root { --nav-h: 56px; }
+
+  /* Landing nav */
+  .landing-nav { padding: 0 20px !important; }
+  .landing-nav-links { display: none !important; }
+
+  /* Landing hero */
+  .landing-hero { min-height: auto !important; padding: 0 !important; flex-direction: column !important; }
+  .landing-hero-img { position: relative !important; width: 100% !important; height: 240px !important; }
+  .landing-hero-text { width: 100% !important; padding: 24px 20px 40px !important; }
+  .landing-h1 { font-size: 38px !important; }
+  .landing-h2 { font-size: 28px !important; }
+
+  /* Landing sections */
+  .landing-section { padding: 60px 20px !important; }
+
+  /* Stats: 2x2 */
+  .stats-grid { grid-template-columns: repeat(2, 1fr) !important; }
+
+  /* How-it-works: stack */
+  .steps-grid { grid-template-columns: 1fr !important; }
+
+  /* Why: stack */
+  .why-grid { grid-template-columns: 1fr !important; gap: 32px !important; }
+
+  /* ZK stack: stack */
+  .stack-grid { grid-template-columns: 1fr !important; }
+
+  /* Closing CTA */
+  .landing-closing { padding: 60px 20px !important; }
+  .landing-closing-text { font-size: 32px !important; }
+
+  /* Footer */
+  .landing-footer { padding: 24px 20px !important; flex-direction: column !important; gap: 10px !important; text-align: center !important; }
+
+  /* App shell nav */
+  .app-nav { padding: 12px 16px !important; flex-wrap: wrap !important; gap: 10px !important; }
+
+  /* Shield panel: stack columns */
+  .shield-grid { grid-template-columns: 1fr !important; }
+}

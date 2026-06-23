@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import SendPanel from './SendPanel';
 import ReceivePanel from './ReceivePanel';
 import ReceiptsPanel from './ReceiptsPanel';
@@ -16,6 +16,8 @@ export default function AppShell({ onBack }: Props) {
   const [tab, setTab] = useState<Tab>('send');
   const [sym, setSym] = useState<TokenSym>(getActiveSym());
   const { address, balance, error, refreshBalance } = useWallet();
+
+  useEffect(() => { window.scrollTo(0, 0); }, []);
 
   function pickToken(s: TokenSym) {
     if (s === sym) return;
@@ -49,7 +51,7 @@ export default function AppShell({ onBack }: Props) {
           {error}
         </div>
       )}
-      <nav style={navStyle}>
+      <nav className="app-nav" style={navStyle}>
         <div
           onClick={onBack}
           style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: 18, fontWeight: 700, letterSpacing: '0.28em', textTransform: 'uppercase', cursor: 'pointer' }}

@@ -17,11 +17,11 @@ export default function Landing({ onLaunch }: Props) {
     <div style={{ background: "var(--bg)", fontFamily: "var(--font-sans)", color: "var(--text-1)" }}>
 
       {/* ---------- nav ---------- */}
-      <nav style={{ display: "flex", justifyContent: "space-between", alignItems: "center", height: "var(--nav-h)", padding: "0 48px", position: "fixed", top: 0, left: 0, right: 0, zIndex: 100, background: "rgba(11,11,14,0.82)", backdropFilter: "blur(12px)", borderBottom: "1px solid var(--border)" }}>
+      <nav className="landing-nav" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", height: "var(--nav-h)", padding: "0 48px", position: "fixed", top: 0, left: 0, right: 0, zIndex: 100, background: "rgba(11,11,14,0.82)", backdropFilter: "blur(12px)", borderBottom: "1px solid var(--border)" }}>
         <div style={{ fontFamily: "var(--font-serif)", fontSize: 19, fontWeight: 700, letterSpacing: "0.28em", textTransform: "uppercase" }}>
           SUIT<span style={{ color: "var(--text-3)", fontWeight: 300 }}> Protocol</span>
         </div>
-        <div style={{ display: "flex", gap: 30, alignItems: "center" }}>
+        <div className="landing-nav-links" style={{ display: "flex", gap: 30, alignItems: "center" }}>
           <button className="navlink" onClick={scrollTo("how")}>How it works</button>
           <button className="navlink" onClick={scrollTo("why")}>Why SUIT</button>
           <button className="navlink" onClick={scrollTo("stack")}>ZK stack</button>
@@ -29,21 +29,21 @@ export default function Landing({ onLaunch }: Props) {
       </nav>
 
       {/* ---------- hero ---------- */}
-      <div style={{ minHeight: "100vh", position: "relative", overflow: "hidden", display: "flex", alignItems: "center" }}>
-        <div style={{ position: "absolute", top: 0, right: 0, width: "58%", height: "100%", zIndex: 1 }}>
+      <div className="landing-hero" style={{ minHeight: "100vh", position: "relative", overflow: "hidden", display: "flex", alignItems: "center" }}>
+        <div className="landing-hero-img" style={{ position: "absolute", top: 0, right: 0, width: "58%", height: "100%", zIndex: 1 }}>
           <img src="/suit_hero.jpg" alt="" style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", objectFit: "cover", objectPosition: "50% 35%", filter: "contrast(1.05) brightness(0.7) saturate(0.9)" }} />
           <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to right, var(--bg) 8%, transparent 70%)", zIndex: 2 }} />
           <div style={{ position: "absolute", bottom: 0, left: 0, width: "100%", height: "35%", background: "linear-gradient(to bottom, transparent, var(--bg))", zIndex: 2 }} />
         </div>
 
-        <div style={{ position: "relative", zIndex: 10, width: "52%", padding: "var(--nav-h) 0 0 48px" }}>
+        <div className="landing-hero-text" style={{ position: "relative", zIndex: 10, width: "52%", padding: "var(--nav-h) 0 0 48px" }}>
           {/* live status — credibility, links to chain */}
           <a href={VERIFIER} target="_blank" rel="noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 9, padding: "6px 14px", borderRadius: 999, border: "1px solid var(--accent-border)", background: "var(--accent-dim)", marginBottom: 30, textDecoration: "none" }}>
             <span style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--accent)", boxShadow: "0 0 10px var(--accent)" }} />
             <span className="num" style={{ fontSize: 10, letterSpacing: "0.16em", textTransform: "uppercase", color: "var(--accent)" }}>Live on Stellar testnet</span>
           </a>
 
-          <h1 style={{ fontFamily: "var(--font-serif)", fontSize: 74, fontWeight: 300, lineHeight: 1.04, marginBottom: 24 }}>
+          <h1 className="landing-h1" style={{ fontFamily: "var(--font-serif)", fontSize: 74, fontWeight: 300, lineHeight: 1.04, marginBottom: 24 }}>
             Your payments.<br />
             <em style={{ fontStyle: "italic", color: "var(--text-3)" }}>Their</em> business?<br />
             <strong style={{ fontWeight: 700 }}>Never.</strong>
@@ -80,7 +80,7 @@ export default function Landing({ onLaunch }: Props) {
       </div>
 
       {/* ---------- stats ---------- */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", borderTop: "1px solid var(--border)", borderBottom: "1px solid var(--border)" }}>
+      <div className="stats-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", borderTop: "1px solid var(--border)", borderBottom: "1px solid var(--border)" }}>
         {[
           { num: "Groth16", label: "ZK system", accent: false, small: true },
           { num: "Arbitrary", label: "Amounts", accent: true, small: true },
@@ -95,10 +95,10 @@ export default function Landing({ onLaunch }: Props) {
       </div>
 
       {/* ---------- how it works ---------- */}
-      <section id="how" style={{ padding: "120px 48px" }}>
+      <section id="how" className="landing-section" style={{ padding: "120px 48px" }}>
         <span className="eyebrow" style={eyebrow}>How it works</span>
-        <h2 style={{ fontFamily: "var(--font-serif)", fontSize: 46, fontWeight: 300, margin: "16px 0 64px" }}>Four steps to a private, provable payment.</h2>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 1, background: "var(--border)" }}>
+        <h2 className="landing-h2" style={{ fontFamily: "var(--font-serif)", fontSize: 46, fontWeight: 300, margin: "16px 0 64px" }}>Four steps to a private, provable payment.</h2>
+        <div className="steps-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 1, background: "var(--border)" }}>
           {[
             { step: "01", title: "Shield any amount", desc: "Your browser generates a secret UTXO note and proves value conservation in zero-knowledge. Only a Poseidon commitment goes on-chain — the amount stays hidden." },
             { step: "02", title: "Join the UTXO pool", desc: "Your commitment enters an on-chain Poseidon Merkle tree alongside everyone else's. The chain sees a deposit, never who you'll pay or how much." },
@@ -115,10 +115,10 @@ export default function Landing({ onLaunch }: Props) {
       </section>
 
       {/* ---------- why ---------- */}
-      <section id="why" style={{ padding: "120px 48px", background: "var(--bg-2)", borderTop: "1px solid var(--border)" }}>
+      <section id="why" className="landing-section" style={{ padding: "120px 48px", background: "var(--bg-2)", borderTop: "1px solid var(--border)" }}>
         <span className="eyebrow" style={eyebrow}>Why we built SUIT</span>
-        <h2 style={{ fontFamily: "var(--font-serif)", fontSize: 46, fontWeight: 300, margin: "16px 0 32px", maxWidth: 760 }}>Every transaction you make is being watched.</h2>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 80, maxWidth: 1100 }}>
+        <h2 className="landing-h2" style={{ fontFamily: "var(--font-serif)", fontSize: 46, fontWeight: 300, margin: "16px 0 32px", maxWidth: 760 }}>Every transaction you make is being watched.</h2>
+        <div className="why-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 80, maxWidth: 1100 }}>
           <div>
             <p style={{ fontSize: 15, color: "var(--text-2)", lineHeight: 1.9, marginBottom: 22 }}>Stellar is a public ledger. Every payment — amount, sender, receiver — is permanently visible. Bots monitor transactions in real time and target users within minutes.</p>
             <p style={{ fontSize: 15, color: "var(--text-2)", lineHeight: 1.9 }}>SUIT adds the privacy layer: amounts proven in zero-knowledge, balances held as commitments, compliance provable on demand — privacy by default, auditability by choice.</p>
@@ -139,14 +139,14 @@ export default function Landing({ onLaunch }: Props) {
       </section>
 
       {/* ---------- zk stack ---------- */}
-      <section id="stack" style={{ padding: "120px 48px", borderTop: "1px solid var(--border)" }}>
+      <section id="stack" className="landing-section" style={{ padding: "120px 48px", borderTop: "1px solid var(--border)" }}>
         <span className="eyebrow" style={eyebrow}>The ZK stack</span>
-        <h2 style={{ fontFamily: "var(--font-serif)", fontSize: 46, fontWeight: 300, margin: "16px 0 12px" }}>One proof system, live. More on the roadmap.</h2>
+        <h2 className="landing-h2" style={{ fontFamily: "var(--font-serif)", fontSize: 46, fontWeight: 300, margin: "16px 0 12px" }}>One proof system, live. More on the roadmap.</h2>
         <p style={{ fontSize: 14, color: "var(--text-2)", marginBottom: 56, maxWidth: 560 }}>
           We chose depth over breadth: one system that genuinely verifies on Stellar, rather than several that only appear in a diagram.{" "}
           <a href={POOL} target="_blank" rel="noreferrer" style={{ color: "var(--accent)" }}>See it on-chain →</a>
         </p>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 1, background: "var(--border)" }}>
+        <div className="stack-grid" style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 1, background: "var(--border)" }}>
           {[
             { tool: "Circom", role: "Arbitrary-amount UTXO pool", status: "Live on testnet", live: true, desc: "2-in/2-out transaction circuit (Tornado-Nova model) proving value conservation, Merkle membership, and nullifier uniqueness over BN254. Verified on-chain via Stellar's pairing host functions — deposits and withdrawals of any amount, fully unlinkable." },
             { tool: "Noir", role: "KYC identity proof", status: "Roadmap", live: false, desc: "Would prove a sender holds a valid KYC credential without revealing identity. Circuit scaffolded in the repo; no verifier deployed yet." },
@@ -163,14 +163,14 @@ export default function Landing({ onLaunch }: Props) {
       </section>
 
       {/* ---------- closing ---------- */}
-      <div style={{ padding: "140px 48px", background: "var(--bg-2)", borderTop: "1px solid var(--border)", textAlign: "center" }}>
-        <div style={{ fontFamily: "var(--font-serif)", fontSize: 60, fontWeight: 300, lineHeight: 1.1 }}>Private by default.</div>
-        <div style={{ fontFamily: "var(--font-serif)", fontSize: 60, fontWeight: 300, color: "var(--text-3)", marginBottom: 44 }}>Auditable by choice.</div>
+      <div className="landing-section landing-closing" style={{ padding: "140px 48px", background: "var(--bg-2)", borderTop: "1px solid var(--border)", textAlign: "center" }}>
+        <div className="landing-closing-text" style={{ fontFamily: "var(--font-serif)", fontSize: 60, fontWeight: 300, lineHeight: 1.1 }}>Private by default.</div>
+        <div className="landing-closing-text" style={{ fontFamily: "var(--font-serif)", fontSize: 60, fontWeight: 300, color: "var(--text-3)", marginBottom: 44 }}>Auditable by choice.</div>
         <button className="btn btn-primary" style={{ padding: "16px 44px" }} onClick={onLaunch}>Launch app</button>
       </div>
 
       {/* ---------- footer ---------- */}
-      <footer style={{ padding: "32px 48px", borderTop: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+      <footer className="landing-footer" style={{ padding: "32px 48px", borderTop: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div style={{ fontFamily: "var(--font-serif)", fontSize: 16, fontWeight: 700, letterSpacing: "0.28em", textTransform: "uppercase" }}>SUIT<span style={{ color: "var(--text-3)", fontWeight: 300 }}> Protocol</span></div>
         <div className="num" style={{ fontSize: 10, color: "var(--text-3)", textTransform: "uppercase", letterSpacing: "0.15em" }}>Built on Stellar · Stellar Hacks 2026</div>
       </footer>
