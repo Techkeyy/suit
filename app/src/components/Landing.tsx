@@ -25,7 +25,6 @@ export default function Landing({ onLaunch }: Props) {
           <button className="navlink" onClick={scrollTo("how")}>How it works</button>
           <button className="navlink" onClick={scrollTo("why")}>Why SUIT</button>
           <button className="navlink" onClick={scrollTo("stack")}>ZK stack</button>
-          <button className="btn btn-primary" onClick={onLaunch}>Launch app</button>
         </div>
       </nav>
 
