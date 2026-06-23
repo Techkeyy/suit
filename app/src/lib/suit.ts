@@ -402,6 +402,21 @@ export async function enableAndFundUSDC(address: string, onStep?: (m: string) =>
   onStep?.(`Received ${j.amount || ''} test USDC.`);
 }
 
+export async function fundTestnetXLM(address: string, onStep?: (m: string) => void): Promise<void> {
+  onStep?.('Requesting testnet XLM from Friendbot…');
+  const r = await fetch(`https://friendbot.stellar.org?addr=${encodeURIComponent(address)}`);
+  if (!r.ok) {
+    const j = await r.json().catch(() => ({} as any));
+    const msg = j?.detail || j?.message || `Friendbot error (${r.status})`;
+    if (/already exists/i.test(msg)) {
+      onStep?.('Account already funded — you should have testnet XLM.');
+      return;
+    }
+    throw new Error(msg);
+  }
+  onStep?.('Received 10,000 testnet XLM.');
+}
+
 // ── tx submission ──
 //
 // txBadAuth post-mortem: a withdraw signed by Freighter was rejected at the
