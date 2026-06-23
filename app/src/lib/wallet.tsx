@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
-import { connectWallet, getWalletAddress, getXlmBalance } from './suit';
+import { connectWallet, getWalletAddress, getWalletTokenBalance } from './suit';
 
 interface WalletState {
   address: string | null;
@@ -42,7 +42,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const refreshBalance = useCallback(() => {
     if (!address) return;
     setLoadingBalance(true);
-    getXlmBalance(address)
+    getWalletTokenBalance(address)
       .then(setBalance)
       .catch(() => setBalance(null))
       .finally(() => setLoadingBalance(false));

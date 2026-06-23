@@ -15,12 +15,13 @@ interface Props {
 export default function AppShell({ onBack }: Props) {
   const [tab, setTab] = useState<Tab>('send');
   const [sym, setSym] = useState<TokenSym>(getActiveSym());
-  const { error } = useWallet();
+  const { address, balance, error, refreshBalance } = useWallet();
 
   function pickToken(s: TokenSym) {
     if (s === sym) return;
     setActiveToken(s);
     setSym(s);
+    setTimeout(refreshBalance, 50);
   }
 
   const navStyle: React.CSSProperties = {
@@ -56,55 +57,64 @@ export default function AppShell({ onBack }: Props) {
           SUIT<span style={{ color: 'rgba(255,255,255,0.3)', fontWeight: 300 }}> Protocol</span>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-          {/* Token picker — each token is its own pool deployment */}
-          <div style={{ display: 'flex', gap: 4, background: 'rgba(255,255,255,0.05)', padding: 4, borderRadius: 6 }}>
-            {(Object.keys(TOKENS) as TokenSym[]).map(s => (
-              <button
-                key={s}
-                onClick={() => pickToken(s)}
-                className="num"
-                title={`Shielded ${s} pool`}
-                style={{
-                  fontSize: 11, letterSpacing: '0.08em',
-                  color: sym === s ? 'var(--accent)' : 'var(--text-3)',
-                  background: sym === s ? 'var(--accent-dim)' : 'transparent',
-                  border: `1px solid ${sym === s ? 'var(--accent-border)' : 'transparent'}`,
-                  padding: '6px 14px', borderRadius: 4, cursor: 'pointer', fontWeight: 600,
-                  transition: 'all 0.15s',
-                }}
-              >{TOKENS[s].label}</button>
-            ))}
-          </div>
-
-          <div style={{ display: 'flex', gap: 4, background: 'rgba(255,255,255,0.05)', padding: 4, borderRadius: 6 }}>
-            {(['send', 'receive', 'receipts'] as Tab[]).map(t => (
-              <button
-                key={t}
-                onClick={() => setTab(t)}
-                className="num"
-                style={{
-                  fontSize: 11,
-                  letterSpacing: '0.1em',
-                  textTransform: 'uppercase',
-                  color: tab === t ? 'var(--bg)' : 'var(--text-2)',
-                  background: tab === t ? 'var(--text-1)' : 'transparent',
-                  padding: '7px 18px',
-                  border: 'none',
-                  borderRadius: 4,
-                  cursor: 'pointer',
-                  transition: 'all 0.15s',
-                }}
-              >{({ send: 'Shield', receive: 'Withdraw', receipts: 'Activity' } as Record<Tab, string>)[t]}</button>
-            ))}
-          </div>
+        <div style={{ display: 'flex', gap: 4, background: 'rgba(255,255,255,0.05)', padding: 4, borderRadius: 6 }}>
+          {(['send', 'receive', 'receipts'] as Tab[]).map(t => (
+            <button
+              key={t}
+              onClick={() => setTab(t)}
+              className="num"
+              style={{
+                fontSize: 11,
+                letterSpacing: '0.1em',
+                textTransform: 'uppercase',
+                color: tab === t ? 'var(--bg)' : 'var(--text-2)',
+                background: tab === t ? 'var(--text-1)' : 'transparent',
+                padding: '7px 18px',
+                border: 'none',
+                borderRadius: 4,
+                cursor: 'pointer',
+                transition: 'all 0.15s',
+              }}
+            >{({ send: 'Shield', receive: 'Withdraw', receipts: 'Activity' } as Record<Tab, string>)[t]}</button>
+          ))}
         </div>
 
         <WalletButton />
       </nav>
 
-      {/* key on sym so panels remount and re-read per-pool notes when the token changes */}
-      <div style={{ padding: 28 }} key={sym}>
+      {/* Token toggle + balance */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 28px 0' }}>
+        <div style={{ display: 'inline-flex', alignItems: 'center', background: 'rgba(255,255,255,0.06)', borderRadius: 20, padding: 3 }}>
+          {(Object.keys(TOKENS) as TokenSym[]).map(s => (
+            <button
+              key={s}
+              onClick={() => pickToken(s)}
+              className="num"
+              style={{
+                padding: '7px 22px',
+                borderRadius: 17,
+                fontSize: 12,
+                fontWeight: 600,
+                letterSpacing: '0.04em',
+                border: 'none',
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+                background: sym === s ? 'var(--accent)' : 'transparent',
+                color: sym === s ? '#0a0a0a' : 'var(--text-3)',
+              }}
+            >{TOKENS[s].label}</button>
+          ))}
+        </div>
+        {address && balance !== null && (
+          <div className="num" style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
+            <span style={{ color: 'var(--text-3)' }}>Available:</span>
+            <span style={{ fontWeight: 600, color: 'var(--text-1)' }}>{Number(balance).toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
+            <span style={{ color: 'var(--text-3)', fontSize: 10, letterSpacing: '0.1em' }}>{sym}</span>
+          </div>
+        )}
+      </div>
+
+      <div style={{ padding: '16px 28px 28px' }} key={sym}>
         {tab === 'send' && <SendPanel />}
         {tab === 'receive' && <ReceivePanel />}
         {tab === 'receipts' && <ReceiptsPanel />}

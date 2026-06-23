@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useWallet } from '../lib/wallet';
-import { CONFIG } from '../lib/suit';
+import { CONFIG, getActiveSym } from '../lib/suit';
 
 function fmtXlm(balance: string | null): string {
   if (balance === null) return '—';
@@ -13,6 +13,7 @@ export default function WalletButton() {
   const { address, balance, loadingBalance, connect, connecting, error, disconnect, refreshBalance, modalOpen, openModal, closeModal } = useWallet();
   const [copied, setCopied] = useState(false);
 
+  const sym = getActiveSym();
   const short = (a: string) => `${a.slice(0, 4)}…${a.slice(-4)}`;
 
   const copy = async () => {
@@ -30,7 +31,7 @@ export default function WalletButton() {
       {/* balance pill */}
       <span className="num" style={{ fontSize: 11.5, color: 'var(--text-1)', fontWeight: 600, padding: '7px 11px', display: 'flex', alignItems: 'center', gap: 5 }}>
         {loadingBalance && balance === null ? '…' : fmtXlm(balance)}
-        <span style={{ fontSize: 9, letterSpacing: '0.1em', color: 'var(--text-3)' }}>XLM</span>
+        <span style={{ fontSize: 9, letterSpacing: '0.1em', color: 'var(--text-3)' }}>{sym}</span>
       </span>
       {/* address pill */}
       <span style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '7px 12px', background: 'var(--bg-2)', borderLeft: '1px solid var(--border-strong)' }}>
@@ -74,7 +75,7 @@ export default function WalletButton() {
                     <span className="num" style={{ fontSize: 28, fontWeight: 600, color: 'var(--text-1)', lineHeight: 1 }}>
                       {loadingBalance && balance === null ? '…' : fmtXlm(balance)}
                     </span>
-                    <span className="num" style={{ fontSize: 12, letterSpacing: '0.12em', color: 'var(--text-3)', textTransform: 'uppercase' }}>XLM</span>
+                    <span className="num" style={{ fontSize: 12, letterSpacing: '0.12em', color: 'var(--text-3)', textTransform: 'uppercase' }}>{sym}</span>
                   </div>
                 </div>
 

@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useWallet } from '../lib/wallet';
-import { shield, getActiveToken, enableAndFundUSDC, CONFIG } from '../lib/suit';
+import { shield, getActiveToken, enableAndFundUSDC, getWalletTokenBalance, CONFIG } from '../lib/suit';
 
 type Phase = 'idle' | 'working' | 'done' | 'error';
 
@@ -12,13 +12,22 @@ export default function SendPanel() {
   const [txHash, setTxHash] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [faucet, setFaucet] = useState<{ busy: boolean; msg: string; err: string }>({ busy: false, msg: '', err: '' });
+  const [tokenBal, setTokenBal] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (address) {
+      getWalletTokenBalance(address).then(setTokenBal).catch(() => setTokenBal(null));
+    }
+  }, [address]);
 
   async function handleFaucet() {
     if (!address) return openModal();
     setFaucet({ busy: true, msg: '', err: '' });
     try {
       await enableAndFundUSDC(address, m => setFaucet(f => ({ ...f, msg: m })));
-      setFaucet({ busy: false, msg: 'Test USDC added to your wallet. You can shield it now.', err: '' });
+      const bal = await getWalletTokenBalance(address);
+      setTokenBal(bal);
+      setFaucet({ busy: false, msg: `1,000 test USDC minted. Wallet balance: ${Number(bal).toLocaleString(undefined, { maximumFractionDigits: 2 })} USDC`, err: '' });
       refreshBalance();
     } catch (e: any) {
       setFaucet({ busy: false, msg: '', err: e.message || String(e) });
@@ -35,6 +44,7 @@ export default function SendPanel() {
       setTxHash(res.txHash);
       setPhase('done');
       refreshBalance();
+      if (address) getWalletTokenBalance(address).then(setTokenBal).catch(() => {});
     } catch (e: any) {
       setErr(e.message || String(e));
       setPhase('error');
@@ -82,6 +92,13 @@ export default function SendPanel() {
                 {faucet.busy ? 'Working…' : 'Get test USDC'}
               </button>
             </div>
+            {address && tokenBal !== null && (
+              <div className="num" style={{ fontSize: 11, color: 'var(--text-2)', marginTop: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--text-3)' }}>Available:</span>
+                <span style={{ fontWeight: 600, color: 'var(--text-1)' }}>{Number(tokenBal).toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
+                <span style={{ color: 'var(--text-3)' }}>USDC</span>
+              </div>
+            )}
             {faucet.msg && <div className="num" style={{ fontSize: 10.5, color: 'var(--accent)', marginTop: 8 }}>{faucet.msg}</div>}
             {faucet.err && <div className="num" style={{ fontSize: 10.5, color: 'rgba(248,180,180,0.9)', marginTop: 8, wordBreak: 'break-all' }}>{faucet.err}</div>}
           </div>
