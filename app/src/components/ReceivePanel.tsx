@@ -32,6 +32,7 @@ export default function ReceivePanel() {
     try {
       setPhase('working');
       const res = await withdraw(address, active, amount, recipient.trim(), m => setLog(l => [...l, m]));
+      setLog(l => [...l, '✓ Confirmed on-chain']);
       setTxHash(res.txHash);
       if (res.changeNote) {
         setChangeInfo(`Change note saved: ${stroopsToXlm(res.changeNote.amount)} XLM (spendable)`);
@@ -104,9 +105,15 @@ export default function ReceivePanel() {
 
       {log.length > 0 && (
         <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 6, padding: 14, marginTop: 14 }}>
-          {log.map((l, i) => (
-            <div key={i} className="num" style={{ fontSize: 11, color: 'var(--text-2)', lineHeight: 1.8 }}>{l}</div>
-          ))}
+          {log.map((l, i) => {
+            const done = l.startsWith('✓');
+            const pending = busy && i === log.length - 1 && !done;
+            return (
+              <div key={i} className="num" style={{ fontSize: 11, color: done ? 'var(--accent)' : 'var(--text-2)', lineHeight: 1.8 }}>
+                {l}{pending ? ' …' : ''}
+              </div>
+            );
+          })}
         </div>
       )}
       {err && (
@@ -125,8 +132,10 @@ export default function ReceivePanel() {
 
       <div style={{ padding: '14px 16px', background: 'var(--surface)', borderLeft: '2px solid var(--accent-border)', marginTop: 18 }}>
         <p style={{ fontSize: 11.5, color: 'var(--text-3)', lineHeight: 1.65 }}>
-          Withdraw any portion of a shielded note. The proof reveals only a nullifier and value conservation — never
-          which deposit, never the amount. Change is returned as a new note you can spend later.
+          Withdraw any portion of a shielded note. The proof hides <em>which</em> deposit you're spending — the
+          withdrawal can't be linked back to it. The recipient and withdrawn amount are public (they must be, to
+          move real XLM); change returns as a new private note. Note: the submitting account is still visible —
+          a relayer removes that too (roadmap).
         </p>
       </div>
     </div>
