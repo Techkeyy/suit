@@ -70,9 +70,6 @@
                   "i128": "1000000000"
                 },
                 {
-                  "bytes": "0000000000000000000000000000000000000000000000000000000000000007"
-                },
-                {
                   "vec": [
                     {
                       "bytes": "0000000000000000000000000000000000000000000000000000000000000001"
@@ -97,6 +94,12 @@
                 },
                 {
                   "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M"
+                },
+                {
+                  "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M"
+                },
+                {
+                  "i128": "0"
                 }
               ]
             }

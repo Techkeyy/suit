@@ -18,7 +18,7 @@ mod poseidon;
 
 use soroban_sdk::{
     contract, contractclient, contracterror, contractimpl, contracttype, symbol_short, token,
-    Address, Bytes, BytesN, Env, Symbol, Vec, U256,
+    xdr::ToXdr, Address, Bytes, BytesN, Env, Symbol, Vec, U256,
 };
 
 const DEPTH: u32 = 16;
@@ -128,21 +128,36 @@ impl SuitPoolV3 {
     }
 
     /// Spend up to 2 input notes, create 2 output notes; net token move = ext_amount.
+    ///
+    /// The withdrawal destination and relayer fee are *bound into the proof*:
+    /// the contract recomputes `ext_data_hash = keccak256(recipient ‖ relayer ‖ fee)`
+    /// and feeds it into the verified public signals. A valid proof is therefore
+    /// inseparable from the exact (recipient, relayer, fee) it was made for — a
+    /// relayer (or anyone who sees the proof in flight) cannot re-point the funds
+    /// to a different address without invalidating the proof. This is what makes
+    /// the relayer non-custodial.
     pub fn transact(
         env: Env,
         proof_bytes: Bytes,
         root: BytesN<32>,
         ext_amount: i128,
-        ext_data_hash: BytesN<32>,
         input_nullifiers: Vec<BytesN<32>>,
         output_commitments: Vec<BytesN<32>>,
-        account: Address,   // funds source for deposits (requires auth)
+        account: Address,   // tx submitter (self or relayer); requires auth; funds source for deposits
         recipient: Address, // funds destination for withdrawals
+        relayer: Address,   // fee recipient, bound into the proof (= account when self-submitting)
+        fee: i128,          // relayer fee, paid out of the withdrawn amount; 0 for deposits
     ) -> Result<(), PoolError> {
         require_init(&env)?;
         if input_nullifiers.len() != 2 || output_commitments.len() != 2 {
             return Err(PoolError::BadArgs);
         }
+        if fee < 0 {
+            return Err(PoolError::BadArgs);
+        }
+
+        // Bind the external data (where the money goes) to the proof.
+        let ext_data_hash = compute_ext_hash(&env, &recipient, &relayer, fee);
 
         let root_u = to_u256(&env, &root);
         if !is_known_root(&env, &root_u) {
@@ -196,9 +211,31 @@ impl SuitPoolV3 {
         let token_addr: Address = env.storage().instance().get(&TOKEN).unwrap();
         let tkn = token::Client::new(&env, &token_addr);
         if ext_amount > 0 {
+            // deposit: pull funds from the submitter; no relayer fee on deposits
+            if fee != 0 {
+                return Err(PoolError::BadArgs);
+            }
             tkn.transfer(&account, &env.current_contract_address(), &ext_amount);
         } else if ext_amount < 0 {
-            tkn.transfer(&env.current_contract_address(), &recipient, &(-ext_amount));
+            // withdraw: split the amount leaving the pool between the relayer
+            // (fee) and the recipient (the rest). Total out is unchanged, so the
+            // circuit's value-conservation is unaffected.
+            let out = -ext_amount;
+            if fee > out {
+                return Err(PoolError::InvalidExtAmount);
+            }
+            if fee > 0 {
+                tkn.transfer(&env.current_contract_address(), &relayer, &fee);
+            }
+            let to_recipient = out - fee;
+            if to_recipient > 0 {
+                tkn.transfer(&env.current_contract_address(), &recipient, &to_recipient);
+            }
+        } else {
+            // internal transfer (ext_amount == 0): no relayer fee
+            if fee != 0 {
+                return Err(PoolError::BadArgs);
+            }
         }
 
         env.events().publish(
@@ -228,6 +265,26 @@ impl SuitPoolV3 {
     pub fn nullifier_spent(env: Env, nullifier: BytesN<32>) -> bool {
         is_spent(&env, &nullifier)
     }
+
+    /// Diagnostic/parity view: the exact field element the contract binds into
+    /// the proof for a given (recipient, relayer, fee). The browser must produce
+    /// the identical value for its proof to verify.
+    pub fn compute_ext_data_hash(env: Env, recipient: Address, relayer: Address, fee: i128) -> BytesN<32> {
+        compute_ext_hash(&env, &recipient, &relayer, fee)
+    }
+}
+
+/// ext_data_hash = keccak256(recipient_xdr ‖ relayer_xdr ‖ fee_be) reduced to a
+/// BN254 field element by keeping the low 31 bytes (always < the scalar field p,
+/// so no modular reduction is needed and it matches the browser byte-for-byte).
+fn compute_ext_hash(env: &Env, recipient: &Address, relayer: &Address, fee: i128) -> BytesN<32> {
+    let mut data = recipient.clone().to_xdr(env);
+    data.append(&relayer.clone().to_xdr(env));
+    data.append(&Bytes::from_array(env, &fee.to_be_bytes()));
+    let h = env.crypto().keccak256(&data).to_array();
+    let mut fld = [0u8; 32];
+    fld[1..32].copy_from_slice(&h[1..32]);
+    BytesN::from_array(env, &fld)
 }
 
 fn require_init(env: &Env) -> Result<(), PoolError> {

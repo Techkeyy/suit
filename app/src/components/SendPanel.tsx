@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useWallet } from '../lib/wallet';
-import { shield, CONFIG } from '../lib/suit';
+import { shield, getActiveToken, enableAndFundUSDC, CONFIG } from '../lib/suit';
 
 type Phase = 'idle' | 'working' | 'done' | 'error';
 
@@ -11,6 +11,19 @@ export default function SendPanel() {
   const [step, setStep] = useState('');
   const [txHash, setTxHash] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [faucet, setFaucet] = useState<{ busy: boolean; msg: string; err: string }>({ busy: false, msg: '', err: '' });
+
+  async function handleFaucet() {
+    if (!address) return openModal();
+    setFaucet({ busy: true, msg: '', err: '' });
+    try {
+      await enableAndFundUSDC(address, m => setFaucet(f => ({ ...f, msg: m })));
+      setFaucet({ busy: false, msg: 'Test USDC added to your wallet. You can shield it now.', err: '' });
+      refreshBalance();
+    } catch (e: any) {
+      setFaucet({ busy: false, msg: '', err: e.message || String(e) });
+    }
+  }
 
   async function handleShield() {
     if (!address) return openModal();
@@ -29,6 +42,7 @@ export default function SendPanel() {
   }
 
   const busy = phase === 'working';
+  const sym = getActiveToken().sym;
 
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, background: 'var(--border)' }}>
@@ -50,7 +64,7 @@ export default function SendPanel() {
             disabled={busy}
             style={{ flex: 1, fontSize: 32, fontWeight: 600, color: 'var(--text-1)', background: 'transparent', border: 'none', outline: 'none', padding: 0, lineHeight: 1 }}
           />
-          <span className="num" style={{ fontSize: 13, letterSpacing: '0.15em', color: 'var(--text-3)', textTransform: 'uppercase' }}>XLM</span>
+          <span className="num" style={{ fontSize: 13, letterSpacing: '0.15em', color: 'var(--text-3)', textTransform: 'uppercase' }}>{sym}</span>
           <span className="num" style={{ fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--accent)', background: 'var(--accent-dim)', border: '1px solid var(--accent-border)', padding: '4px 10px', borderRadius: 3 }}>Any amount</span>
         </div>
         <div style={{ height: 1, background: 'var(--border)', marginBottom: 14 }} />
@@ -59,8 +73,22 @@ export default function SendPanel() {
           The amount is hidden inside a zero-knowledge proof — no one can see how much you shielded.
         </p>
 
+        {sym === 'USDC' && (
+          <div style={{ marginBottom: 14, padding: '10px 14px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 6 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+              <span style={{ fontSize: 11.5, color: 'var(--text-3)' }}>Need test USDC to try the pool?</span>
+              <button className="num" onClick={handleFaucet} disabled={faucet.busy}
+                style={{ fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--accent)', background: 'var(--accent-dim)', border: '1px solid var(--accent-border)', padding: '6px 12px', borderRadius: 3, cursor: faucet.busy ? 'default' : 'pointer', whiteSpace: 'nowrap' }}>
+                {faucet.busy ? 'Working…' : 'Get test USDC'}
+              </button>
+            </div>
+            {faucet.msg && <div className="num" style={{ fontSize: 10.5, color: 'var(--accent)', marginTop: 8 }}>{faucet.msg}</div>}
+            {faucet.err && <div className="num" style={{ fontSize: 10.5, color: 'rgba(248,180,180,0.9)', marginTop: 8, wordBreak: 'break-all' }}>{faucet.err}</div>}
+          </div>
+        )}
+
         <button className="btn btn-primary" style={{ width: '100%' }} onClick={handleShield} disabled={busy}>
-          {!address ? 'Connect wallet' : busy ? 'Proving…' : amount ? `Shield ${amount} XLM` : 'Shield XLM'}
+          {!address ? 'Connect wallet' : busy ? 'Proving…' : amount ? `Shield ${amount} ${sym}` : `Shield ${sym}`}
         </button>
 
         {step && busy && (
