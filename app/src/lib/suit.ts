@@ -14,6 +14,7 @@ import {
   TransactionBuilder,
   Contract,
   Address,
+  Keypair,
   xdr,
   scValToNative,
   nativeToScVal,
@@ -265,7 +266,28 @@ export async function getXlmBalance(address: string): Promise<string> {
 }
 
 // ── tx submission ──
-async function signAndSend(address: string, op: xdr.Operation): Promise<string> {
+//
+// txBadAuth post-mortem: a withdraw signed by Freighter was rejected at the
+// classic layer (bad envelope signature) even though the *identical* assembled
+// transaction submits fine when signed by a raw keypair, the contract/tx are
+// correct, and an XDR round-trip is byte-for-byte lossless. The only way that
+// happens: the signature Freighter returns does not match the hash of the
+// envelope we submit — i.e. the wallet re-encodes/re-builds the transaction and
+// signs a hash other than the one in the bytes it hands back.
+//
+// So we stop trusting the returned envelope blindly. We take the signature(s)
+// Freighter produced and verify them, with the source account's public key,
+// against BOTH candidate hashes: the transaction we asked it to sign (`prepared`)
+// and the transaction it returned (`returned`). We then submit *exactly* the
+// transaction the signature actually authenticates — reattaching the signature
+// to `prepared` when the wallet handed back a differently-encoded envelope. If
+// no signature validates against either, we throw a precise error instead of
+// letting the network return an opaque txBadAuth.
+async function signAndSend(
+  address: string,
+  op: xdr.Operation,
+  onStep?: (m: string) => void,
+): Promise<string> {
   const account = await server.getAccount(address);
   const tx = new TransactionBuilder(account, {
     fee: (Number(BASE_FEE) * 1000).toString(),
@@ -275,18 +297,54 @@ async function signAndSend(address: string, op: xdr.Operation): Promise<string> 
   const sim = await server.simulateTransaction(tx);
   if (rpc.Api.isSimulationError(sim)) throw new Error(`Simulation: ${sim.error}`);
   const prepared = rpc.assembleTransaction(tx, sim).build();
+  const preparedHash = prepared.hash();
+
   const signed = await signTransaction(prepared.toXDR(), { networkPassphrase: CONFIG.network, address });
-  if ((signed as any).error) throw new Error((signed as any).error);
+  if ((signed as any).error) {
+    const e = (signed as any).error;
+    throw new Error(typeof e === 'string' ? e : (e.message || JSON.stringify(e)));
+  }
   const xdrStr = (signed as any).signedTxXdr;
   if (!xdrStr) throw new Error('Wallet returned no signed transaction.');
-  const signedTx = TransactionBuilder.fromXDR(xdrStr, CONFIG.network);
-  const sent = await server.sendTransaction(signedTx as any);
+
+  const returned = TransactionBuilder.fromXDR(xdrStr, CONFIG.network) as any;
+  const returnedHash = returned.hash();
+  const sigs = returned.signatures || [];
+  if (sigs.length === 0) {
+    throw new Error('Freighter returned an unsigned transaction. Unlock it, make sure it is set to Testnet, and approve the signing prompt.');
+  }
+
+  const srcKp = Keypair.fromPublicKey(address);
+  let toSubmit: any = null;
+  for (const ds of sigs) {
+    const sigBuf = ds.signature();
+    if (srcKp.verify(returnedHash, sigBuf)) { toSubmit = returned; break; }
+    if (srcKp.verify(preparedHash, sigBuf)) {
+      // Wallet signed the tx we sent but handed back a re-encoded envelope —
+      // reattach the valid signature to the original and submit that one.
+      onStep?.('Repairing wallet signature (envelope re-encode)…');
+      prepared.signatures.push(ds);
+      toSubmit = prepared;
+      break;
+    }
+  }
+  if (!toSubmit) {
+    throw new Error(
+      `Freighter's signature does not authenticate this transaction ` +
+      `(prepared ${preparedHash.toString('hex').slice(0, 12)} / returned ${returnedHash.toString('hex').slice(0, 12)}). ` +
+      `Update Freighter to the latest version, ensure it is on Testnet, and retry.`,
+    );
+  }
+
+  const sent = await server.sendTransaction(toSubmit);
   if (sent.status === 'ERROR') throw new Error(`Submit: ${JSON.stringify(sent.errorResult)}`);
   for (let i = 0; i < 60; i++) {
     await new Promise(r => setTimeout(r, 1500));
     const got = await server.getTransaction(sent.hash);
     if (got.status === rpc.Api.GetTransactionStatus.SUCCESS) return sent.hash;
-    if (got.status === rpc.Api.GetTransactionStatus.FAILED) throw new Error(`Failed on-chain (${sent.hash})`);
+    if (got.status === rpc.Api.GetTransactionStatus.FAILED) {
+      throw new Error(`Failed on-chain (${sent.hash}) — ${JSON.stringify((got as any).resultXdr?.result?.()?.switch?.()?.name ?? 'see explorer')}`);
+    }
   }
   throw new Error('Not confirmed in time');
 }
@@ -365,7 +423,7 @@ export async function shield(
     new Address(address).toScVal(),
     new Address(address).toScVal(),
   );
-  const txHash = await signAndSend(address, op);
+  const txHash = await signAndSend(address, op, onStep);
   leafCacheMem = null; // invalidate; tree changed
 
   const note: UTXONote = {
@@ -442,7 +500,7 @@ export async function withdraw(
     new Address(address).toScVal(),
     new Address(recipient).toScVal(),
   );
-  const txHash = await signAndSend(address, op);
+  const txHash = await signAndSend(address, op, onStep);
   leafCacheMem = null;
 
   const notes = getNotes().map(n =>
