@@ -91,17 +91,34 @@ export function signReceiptWithKeypair(
 export async function verifyReceipt(
   receipt: ComplianceReceipt,
   rpcUrl?: string,
+  startLedger?: number,
 ): Promise<ReceiptVerification> {
-  const pk = BigInt(receipt.deposit.pubKey);
-  const bl = BigInt(receipt.deposit.blinding);
+  if (!receipt?.deposit?.pubKey || !receipt?.deposit?.blinding ||
+      !receipt?.deposit?.amount || !receipt?.deposit?.commitment) {
+    return { valid: false, commitmentValid: false, commitmentOnChain: false, nullifierBurned: false, signatureValid: null };
+  }
 
-  const amtParts = receipt.deposit.amount.split('.');
-  const whole = BigInt(amtParts[0] || '0');
-  const fracStr = (amtParts[1] || '').padEnd(7, '0').slice(0, 7);
-  const amt = whole * 10000000n + BigInt(fracStr);
+  let commitmentValid = false;
+  try {
+    const pk = BigInt(receipt.deposit.pubKey);
+    const bl = BigInt(receipt.deposit.blinding);
 
-  const recomputed = commitHash(amt, pk, bl).toString();
-  const commitmentValid = recomputed === receipt.deposit.commitment;
+    const amtParts = receipt.deposit.amount.split('.');
+    const whole = BigInt(amtParts[0] || '0');
+    const fracStr = (amtParts[1] || '').padEnd(7, '0').slice(0, 7);
+    const amt = whole * 10000000n + BigInt(fracStr);
+
+    const recomputed = commitHash(amt, pk, bl).toString();
+    commitmentValid = recomputed === receipt.deposit.commitment;
+
+    if (!commitmentValid) {
+      console.error('[SUIT verifyReceipt] commitment mismatch',
+        { amt: amt.toString(), pk: pk.toString(), bl: bl.toString(),
+          recomputed, expected: receipt.deposit.commitment });
+    }
+  } catch (e) {
+    console.error('[SUIT verifyReceipt] commitment math threw', e);
+  }
 
   const url = rpcUrl ??
     (receipt.network === 'mainnet' ? 'https://mainnet.sorobanrpc.com' : 'https://soroban-testnet.stellar.org');
@@ -114,7 +131,6 @@ export async function verifyReceipt(
   try {
     const server = new rpc.Server(url);
 
-    // Check commitment on-chain via events
     const filters = [{ type: 'contract' as const, contractIds: [receipt.poolId], topics: [['*']] }];
     const checkEvents = (events: any[]) => {
       for (const e of events) {
@@ -131,16 +147,23 @@ export async function verifyReceipt(
       }
     };
 
-    // getEvents scans forward in bounded windows: short/empty pages still
-    // carry an advancing cursor, so paginate until it reaches latestLedger.
     const cursorLedger = (c?: string): number => {
       if (!c) return Number.MAX_SAFE_INTEGER;
       try { return Number(BigInt(c.split('-')[0]) >> 32n); } catch { return Number.MAX_SAFE_INTEGER; }
     };
-    const latestSeq = (await server.getLatestLedger()).sequence;
-    const start = Math.max(latestSeq - 100000, 1);
 
-    let res = await server.getEvents({ startLedger: start, filters, limit: 200 });
+    let res: Awaited<ReturnType<rpc.Server['getEvents']>>;
+    if (startLedger) {
+      try {
+        res = await server.getEvents({ startLedger, filters, limit: 200 });
+      } catch {
+        const latestSeq = (await server.getLatestLedger()).sequence;
+        res = await server.getEvents({ startLedger: Math.max(latestSeq - 17000, 1), filters, limit: 200 });
+      }
+    } else {
+      const latestSeq = (await server.getLatestLedger()).sequence;
+      res = await server.getEvents({ startLedger: Math.max(latestSeq - 17000, 1), filters, limit: 200 });
+    }
     const latest = res.latestLedger;
     checkEvents(res.events);
     let guard = 0;
@@ -149,7 +172,6 @@ export async function verifyReceipt(
       checkEvents(res.events);
     }
 
-    // Check nullifier burned on-chain via pool.nullifier_spent(BytesN<32>)
     if (receipt.withdrawal.nullifier) {
       try {
         const nullBig = BigInt(receipt.withdrawal.nullifier);
@@ -163,11 +185,14 @@ export async function verifyReceipt(
         if (!rpc.Api.isSimulationError(sim) && sim.result) {
           nullifierBurned = scValToNative(sim.result.retval) === true;
         }
-      } catch { /* contract call failed */ }
+      } catch (e) {
+        console.error('[SUIT verifyReceipt] nullifier check failed', e);
+      }
     }
-  } catch { /* network error */ }
+  } catch (e) {
+    console.error('[SUIT verifyReceipt] chain check failed', e);
+  }
 
-  // Verify signature if present
   if (receipt.signature?.sig) {
     try {
       const kp = Keypair.fromPublicKey(receipt.signature.signer);

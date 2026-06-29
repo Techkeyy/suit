@@ -78,6 +78,7 @@ export async function verifyAuditPackage(
   pkg: AuditPackage,
   viewingKeyHex: string,
   rpcUrl?: string,
+  startLedger?: number,
 ): Promise<AuditReport> {
   const key = fromHex(viewingKeyHex);
   const entries: (AuditEntry & { onChainVerified: boolean })[] = [];
@@ -87,7 +88,7 @@ export async function verifyAuditPackage(
   const url = rpcUrl ??
     (pkg.network === 'mainnet' ? 'https://mainnet.sorobanrpc.com' : 'https://soroban-testnet.stellar.org');
 
-  const onChainCommitments = await fetchOnChainCommitments(url, pkg.poolId);
+  const onChainCommitments = await fetchOnChainCommitments(url, pkg.poolId, startLedger);
 
   for (const enc of pkg.entries) {
     let parsed: AuditEntry;
@@ -120,20 +121,12 @@ export async function verifyAuditPackage(
   };
 }
 
-async function fetchOnChainCommitments(rpcUrl: string, poolId: string): Promise<Set<string>> {
+async function fetchOnChainCommitments(rpcUrl: string, poolId: string, startLedger?: number): Promise<Set<string>> {
   const server = new rpc.Server(rpcUrl);
   const commitments = new Set<string>();
 
-  let start: number;
-  try {
-    const latest = (await server.getLatestLedger()).sequence;
-    start = Math.max(latest - 100000, 1);
-  } catch { return commitments; }
-
   const filters = [{ type: 'contract' as const, contractIds: [poolId], topics: [['*']] }];
 
-  // getEvents scans forward in bounded windows: short/empty pages still carry
-  // an advancing cursor, so paginate until it reaches latestLedger.
   const cursorLedger = (c?: string): number => {
     if (!c) return Number.MAX_SAFE_INTEGER;
     try { return Number(BigInt(c.split('-')[0]) >> 32n); } catch { return Number.MAX_SAFE_INTEGER; }
@@ -151,7 +144,18 @@ async function fetchOnChainCommitments(rpcUrl: string, poolId: string): Promise<
   };
 
   try {
-    let res = await server.getEvents({ startLedger: start, filters, limit: 200 });
+    let res: Awaited<ReturnType<rpc.Server['getEvents']>>;
+    if (startLedger) {
+      try {
+        res = await server.getEvents({ startLedger, filters, limit: 200 });
+      } catch {
+        const latest = (await server.getLatestLedger()).sequence;
+        res = await server.getEvents({ startLedger: Math.max(latest - 17000, 1), filters, limit: 200 });
+      }
+    } else {
+      const latest = (await server.getLatestLedger()).sequence;
+      res = await server.getEvents({ startLedger: Math.max(latest - 17000, 1), filters, limit: 200 });
+    }
     const latest = res.latestLedger;
     collect(res.events);
     let guard = 0;

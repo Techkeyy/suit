@@ -77,18 +77,31 @@ export default function ReceiptsPanel() {
   const [rcBusy, setRcBusy] = useState(false);
   const [rcResult, setRcResult] = useState<ReceiptVerification | null>(null);
 
-  const doGenerateReceipt = (note: UTXONote) => {
+  const doGenerateReceipt = async (note: UTXONote) => {
+    setRcBusy(true); setRcMsg(''); setRcResult(null);
     try {
       const receipt = generateReceipt(note);
       download(`suit-receipt-${note.commitment.slice(0, 8)}.json`, receipt);
-      setRcMsg('Compliance receipt downloaded — it links this deposit to its withdrawal.');
+
+      const result = await verifyReceipt(receipt);
+      setRcResult(result);
+      if (result.valid) {
+        setRcMsg('Receipt downloaded and verified against on-chain state.');
+      } else if (result.commitmentValid) {
+        setRcMsg('Receipt downloaded. Commitment math valid but chain checks pending — the chain may still be indexing.');
+      } else {
+        setRcMsg('Receipt downloaded but verification failed — check browser console for diagnostics.');
+      }
     } catch (e: any) { setRcMsg(`Could not generate: ${e?.message || e}`); }
+    finally { setRcBusy(false); }
   };
 
   const verifyReceiptFile = async (file: File) => {
     setRcBusy(true); setRcMsg(''); setRcResult(null);
     try {
-      const receipt = JSON.parse(await file.text());
+      const raw = await file.text();
+      const receipt = JSON.parse(raw);
+      console.log('[SUIT] verifying receipt:', receipt);
       const result = await verifyReceipt(receipt);
       setRcResult(result);
       setRcMsg(result.valid ? 'Receipt verified against on-chain state.' : 'Receipt could not be fully verified.');
