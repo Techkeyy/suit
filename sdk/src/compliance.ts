@@ -92,6 +92,7 @@ export async function verifyReceipt(
   receipt: ComplianceReceipt,
   rpcUrl?: string,
   startLedger?: number,
+  knownCommitments?: Set<string>,
 ): Promise<ReceiptVerification> {
   if (!receipt?.deposit?.pubKey || !receipt?.deposit?.blinding ||
       !receipt?.deposit?.amount || !receipt?.deposit?.commitment) {
@@ -128,48 +129,54 @@ export async function verifyReceipt(
   let nullifierBurned = false;
   let signatureValid: boolean | null = null;
 
+  if (knownCommitments) {
+    commitmentOnChain = knownCommitments.has(receipt.deposit.commitment);
+  }
+
   try {
     const server = new rpc.Server(url);
 
-    const filters = [{ type: 'contract' as const, contractIds: [receipt.poolId], topics: [['*']] }];
-    const checkEvents = (events: any[]) => {
-      for (const e of events) {
-        try {
-          const data: any = scValToNative(e.value);
-          if (data?.out_commitment_0) {
-            const c0 = bytesToBig(data.out_commitment_0).toString();
-            const c1 = bytesToBig(data.out_commitment_1).toString();
-            if (c0 === receipt.deposit.commitment || c1 === receipt.deposit.commitment) {
-              commitmentOnChain = true;
+    if (!knownCommitments) {
+      const filters = [{ type: 'contract' as const, contractIds: [receipt.poolId], topics: [['*']] }];
+      const checkEvents = (events: any[]) => {
+        for (const e of events) {
+          try {
+            const data: any = scValToNative(e.value);
+            if (data?.out_commitment_0) {
+              const c0 = bytesToBig(data.out_commitment_0).toString();
+              const c1 = bytesToBig(data.out_commitment_1).toString();
+              if (c0 === receipt.deposit.commitment || c1 === receipt.deposit.commitment) {
+                commitmentOnChain = true;
+              }
             }
-          }
-        } catch { /* skip */ }
-      }
-    };
+          } catch { /* skip */ }
+        }
+      };
 
-    const cursorLedger = (c?: string): number => {
-      if (!c) return Number.MAX_SAFE_INTEGER;
-      try { return Number(BigInt(c.split('-')[0]) >> 32n); } catch { return Number.MAX_SAFE_INTEGER; }
-    };
+      const cursorLedger = (c?: string): number => {
+        if (!c) return Number.MAX_SAFE_INTEGER;
+        try { return Number(BigInt(c.split('-')[0]) >> 32n); } catch { return Number.MAX_SAFE_INTEGER; }
+      };
 
-    let res: Awaited<ReturnType<rpc.Server['getEvents']>>;
-    if (startLedger) {
-      try {
-        res = await server.getEvents({ startLedger, filters, limit: 200 });
-      } catch {
+      let res: Awaited<ReturnType<rpc.Server['getEvents']>>;
+      if (startLedger) {
+        try {
+          res = await server.getEvents({ startLedger, filters, limit: 200 });
+        } catch {
+          const latestSeq = (await server.getLatestLedger()).sequence;
+          res = await server.getEvents({ startLedger: Math.max(latestSeq - 17000, 1), filters, limit: 200 });
+        }
+      } else {
         const latestSeq = (await server.getLatestLedger()).sequence;
         res = await server.getEvents({ startLedger: Math.max(latestSeq - 17000, 1), filters, limit: 200 });
       }
-    } else {
-      const latestSeq = (await server.getLatestLedger()).sequence;
-      res = await server.getEvents({ startLedger: Math.max(latestSeq - 17000, 1), filters, limit: 200 });
-    }
-    const latest = res.latestLedger;
-    checkEvents(res.events);
-    let guard = 0;
-    while ((res as any).cursor && cursorLedger((res as any).cursor) < latest && guard++ < 1000) {
-      res = await server.getEvents({ filters, limit: 200, cursor: (res as any).cursor } as any);
+      const latest = res.latestLedger;
       checkEvents(res.events);
+      let guard = 0;
+      while ((res as any).cursor && cursorLedger((res as any).cursor) < latest && guard++ < 1000) {
+        res = await server.getEvents({ filters, limit: 200, cursor: (res as any).cursor } as any);
+        checkEvents(res.events);
+      }
     }
 
     if (receipt.withdrawal.nullifier) {

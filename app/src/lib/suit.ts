@@ -322,8 +322,11 @@ export function generateReceipt(note: UTXONote): ComplianceReceipt {
 }
 
 /** Verify a compliance receipt against on-chain state. Static — anyone can run it. */
-export function verifyReceipt(receipt: ComplianceReceipt): Promise<ReceiptVerification> {
-  return _verifyReceipt(receipt, CONFIG.rpcUrl, getActiveToken().startLedger);
+export async function verifyReceipt(receipt: ComplianceReceipt): Promise<ReceiptVerification> {
+  const pool = getPool();
+  const leaves = await pool.syncLeaves();
+  const knownCommitments = new Set(leaves.map(l => l.toString()));
+  return _verifyReceipt(receipt, CONFIG.rpcUrl, getActiveToken().startLedger, knownCommitments);
 }
 
 export function getPoolConfig(): SuitPoolConfig {
