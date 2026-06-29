@@ -137,12 +137,17 @@ export interface ComplianceReceipt {
   withdrawal: {
     amount: string;
     recipient: string;
+    nullifier: string;
     txHash: string;
     timestamp: number;
   };
   change?: {
     amount: string;
     commitment: string;
+  };
+  signature?: {
+    signer: string;
+    sig: string;
   };
 }
 
@@ -151,4 +156,5 @@ export interface ReceiptVerification {
   commitmentValid: boolean;
   commitmentOnChain: boolean;
   nullifierBurned: boolean;
+  signatureValid: boolean | null;
 }

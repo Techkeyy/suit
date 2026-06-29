@@ -196,12 +196,16 @@ export default function ReceiptsPanel() {
         {rcMsg && <div style={{ fontSize: 11, color: 'var(--text-2)' }}>{rcMsg}</div>}
         {rcResult && (
           <div style={{ fontSize: 11, color: 'var(--text-2)', borderTop: '1px solid var(--border)', paddingTop: 10, display: 'flex', flexDirection: 'column', gap: 3 }}>
-            {[
+            {([
               ['Commitment math valid', rcResult.commitmentValid],
               ['Deposit found on-chain', rcResult.commitmentOnChain],
+              ['Nullifier burned (withdrawal confirmed)', rcResult.nullifierBurned],
+              ...(rcResult.signatureValid !== null
+                ? [['Signature valid', rcResult.signatureValid] as [string, boolean]]
+                : []),
               ['Overall', rcResult.valid],
-            ].map(([k, ok]) => (
-              <div key={k as string} className="num" style={{ fontSize: 10, color: ok ? 'var(--accent)' : 'var(--text-3)' }}>
+            ] as [string, boolean][]).map(([k, ok]) => (
+              <div key={k} className="num" style={{ fontSize: 10, color: ok ? 'var(--accent)' : 'var(--text-3)' }}>
                 {ok ? '✓' : '✗'} {k}
               </div>
             ))}

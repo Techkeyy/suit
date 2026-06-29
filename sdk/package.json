@@ -1,6 +1,6 @@
 {
   "name": "@suit-protocol/sdk",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Pluggable ZK payment privacy for Stellar — shield, withdraw, viewing keys, compliance receipts",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

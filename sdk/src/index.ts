@@ -22,7 +22,7 @@ export {
   exportAuditPackage, verifyAuditPackage,
 } from './viewing-key';
 
-export { generateReceipt, verifyReceipt } from './compliance';
+export { generateReceipt, verifyReceipt, signReceiptWithKeypair } from './compliance';
 
 export type {
   SuitPoolConfig, Signer, NoteStore, LeafCache,
@@ -32,4 +32,4 @@ export type {
   ComplianceReceipt, ReceiptVerification,
 } from './types';
 
-export const VERSION = '0.3.0';
+export const VERSION = '0.3.1';
