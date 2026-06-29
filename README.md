@@ -98,6 +98,36 @@ Accepts a verification key (set once), proof bytes, and public signals.
 
 ---
 
+## SDK — SUIT as a protocol layer
+
+SUIT isn't only an app. The proving engine lives in **[`@suit-protocol/sdk`](sdk/)**,
+a wallet-agnostic, storage-agnostic TypeScript library. The web app is now a thin
+adapter that plugs Freighter and `localStorage` into the SDK's `Signer` and
+`NoteStore` interfaces — any other project can plug in its own.
+
+```ts
+import { SuitPool, KeypairSigner } from '@suit-protocol/sdk';
+
+const pool = new SuitPool({ network: 'testnet', poolId, tokenId, verifierId,
+  startLedger, signer: new KeypairSigner(secret), noteStore,
+  circuitWasmPath, circuitZkeyPath, relayerUrl });
+
+const { note }       = await pool.shield('100.5');             // deposit any amount
+const { changeNote } = await pool.withdraw(note, '40', dest);  // withdraw, unlinkable
+```
+
+**Auditable by choice** ships in the SDK too:
+
+- **Viewing keys** — export an encrypted audit log + a symmetric key. The holder
+  verifies every shielded amount against on-chain commitments but cannot spend
+  (no private key is disclosed).
+- **Compliance receipts** — a voluntary, per-withdrawal proof linking it back to its
+  source deposit, verifiable by anyone against chain state.
+
+Both are exposed in the app's **Activity** tab. Full API in **[sdk/README.md](sdk/README.md)**.
+
+---
+
 ## What's real vs. roadmap (honest)
 
 | Component | Status |
@@ -112,6 +142,9 @@ Accepts a verification key (set once), proof bytes, and public signals.
 | **extDataHash recipient binding** | ✅ On-chain: the contract recomputes `keccak256(recipient‖relayer‖fee)` (low 31 bytes) and feeds it to the verifier — tampering the recipient fails as `InvalidProof` |
 | **Non-custodial relayer** | ✅ Withdrawals submitted from a relayer account (your wallet never appears on-chain); recipient is proof-bound, so the relayer cannot redirect funds |
 | **Multi-asset pools** | ✅ Asset-agnostic pool deployed twice (XLM + test-USDC) with a self-serve faucet for each |
+| **Pluggable SDK (`@suit-protocol/sdk`)** | ✅ Wallet-/storage-agnostic protocol layer (`Signer` + `NoteStore` interfaces); the app is now a thin Freighter adapter over it |
+| **Viewing keys** | ✅ AES-GCM audit log + exportable package; an auditor verifies every amount against on-chain commitments but cannot spend |
+| **Compliance receipts** | ✅ Voluntary per-withdrawal proof linking it to its source deposit, verifiable against chain state |
 | **Event-retention window** | 🔶 Leaves cached locally + merged; a production indexer would remove reliance on RPC event retention |
 | Noir KYC circuit / RISC Zero compliance | 🚧 Roadmap, not in this build |
 
@@ -132,7 +165,9 @@ suit/
 │   ├── poseidon_spike/               # proof that host Poseidon == circomlib
 │   ├── pool_v2/                      # v2 fixed-denomination (superseded)
 │   ├── groth16_verifier/ pool/       # v1 BLS12-381 (superseded)
-├── app/                              # React dApp (in-browser proving + Freighter)
+├── sdk/                              # @suit-protocol/sdk — pluggable protocol layer
+│   └── src/                          # SuitPool, viewing keys, compliance receipts
+├── app/                              # React dApp (thin Freighter adapter over the SDK)
 ├── scripts/                          # deploy + integration + e2e tests
 └── README.md
 ```

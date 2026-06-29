@@ -1,9 +1,8 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { nodePolyfills } from 'vite-plugin-node-polyfills';
+import path from 'path';
 
-// snarkjs runs in the browser here (groth16 proving) and needs Node globals
-// (Buffer, process) polyfilled. @stellar/stellar-sdk also expects Buffer.
 export default defineConfig({
   plugins: [
     react(),
@@ -12,6 +11,11 @@ export default defineConfig({
       globals: { Buffer: true, global: true, process: true },
     }),
   ],
+  resolve: {
+    alias: {
+      '@suit-protocol/sdk': path.resolve(__dirname, '../sdk/src'),
+    },
+  },
   optimizeDeps: {
     include: ['snarkjs', '@stellar/stellar-sdk'],
   },

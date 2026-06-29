@@ -1,16 +1,41 @@
 {
   "name": "@suit-protocol/sdk",
-  "version": "0.1.0",
-  "description": "SUIT Protocol SDK — pluggable ZK payment privacy for Stellar",
+  "version": "0.3.0",
+  "description": "Pluggable ZK payment privacy for Stellar — shield, withdraw, viewing keys, compliance receipts",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
-    "test": "node --experimental-vm-modules node_modules/.bin/jest"
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run build"
   },
+  "keywords": [
+    "stellar",
+    "soroban",
+    "privacy",
+    "zero-knowledge",
+    "zk",
+    "groth16",
+    "utxo",
+    "poseidon",
+    "shielded-pool"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Techkeyy/suit",
+    "directory": "sdk"
+  },
+  "homepage": "https://github.com/Techkeyy/suit/tree/main/sdk#readme",
   "dependencies": {
     "@stellar/stellar-sdk": "^16.0.1",
+    "poseidon-lite": "^0.3.0",
+    "js-sha3": "^0.9.3",
     "snarkjs": "^0.7.4"
   },
   "devDependencies": {
