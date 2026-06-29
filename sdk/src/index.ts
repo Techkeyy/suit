@@ -32,4 +32,4 @@ export type {
   ComplianceReceipt, ReceiptVerification,
 } from './types';
 
-export const VERSION = '0.3.1';
+export const VERSION = '0.3.2';

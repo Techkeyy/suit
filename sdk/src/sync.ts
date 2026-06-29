@@ -32,13 +32,6 @@ export class LeafSyncer {
     const indexed = this.loadCache();
     const filters = [{ type: 'contract' as const, contractIds: [this.config.poolId], topics: [['*']] }];
 
-    let start = this.config.startLedger;
-    try {
-      const latest = (await this.server.getLatestLedger()).sequence;
-      const minStart = latest - 16000;
-      if (start < minStart) start = minStart;
-    } catch { /* use configured start */ }
-
     const collect = (events: any[]) => {
       for (const e of events) {
         try {
@@ -52,9 +45,31 @@ export class LeafSyncer {
       }
     };
 
-    let res = await this.server.getEvents({ startLedger: start, filters, limit: 200 });
+    // getEvents scans forward in bounded (~10k-ledger) windows: a short or
+    // empty page does NOT mean we're done — the cursor keeps advancing until
+    // it reaches latestLedger. Paginate by cursor, not by page fullness.
+    const cursorLedger = (c?: string): number => {
+      if (!c) return Number.MAX_SAFE_INTEGER;
+      try { return Number(BigInt(c.split('-')[0]) >> 32n); } catch { return Number.MAX_SAFE_INTEGER; }
+    };
+
+    // Start from the pool's deploy ledger so every deposit is recoverable.
+    // If that ledger has aged out of the RPC's event-retention window the
+    // call rejects — fall back to the newest safe window (older leaves are
+    // then served from the persisted LeafCache).
+    let res: Awaited<ReturnType<rpc.Server['getEvents']>>;
+    try {
+      res = await this.server.getEvents({ startLedger: this.config.startLedger, filters, limit: 200 });
+    } catch {
+      const latest = (await this.server.getLatestLedger()).sequence;
+      const start = Math.max(latest - 17000, 1);
+      res = await this.server.getEvents({ startLedger: start, filters, limit: 200 });
+    }
+
+    const latest = res.latestLedger;
     collect(res.events);
-    while (res.events.length === 200 && (res as any).cursor) {
+    let guard = 0;
+    while ((res as any).cursor && cursorLedger((res as any).cursor) < latest && guard++ < 1000) {
       res = await this.server.getEvents({ filters, limit: 200, cursor: (res as any).cursor } as any);
       collect(res.events);
     }

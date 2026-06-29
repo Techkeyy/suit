@@ -113,8 +113,6 @@ export async function verifyReceipt(
 
   try {
     const server = new rpc.Server(url);
-    const latest = (await server.getLatestLedger()).sequence;
-    const start = Math.max(latest - 16000, 1);
 
     // Check commitment on-chain via events
     const filters = [{ type: 'contract' as const, contractIds: [receipt.poolId], topics: [['*']] }];
@@ -133,9 +131,20 @@ export async function verifyReceipt(
       }
     };
 
+    // getEvents scans forward in bounded windows: short/empty pages still
+    // carry an advancing cursor, so paginate until it reaches latestLedger.
+    const cursorLedger = (c?: string): number => {
+      if (!c) return Number.MAX_SAFE_INTEGER;
+      try { return Number(BigInt(c.split('-')[0]) >> 32n); } catch { return Number.MAX_SAFE_INTEGER; }
+    };
+    const latestSeq = (await server.getLatestLedger()).sequence;
+    const start = Math.max(latestSeq - 100000, 1);
+
     let res = await server.getEvents({ startLedger: start, filters, limit: 200 });
+    const latest = res.latestLedger;
     checkEvents(res.events);
-    while (res.events.length === 200 && (res as any).cursor) {
+    let guard = 0;
+    while ((res as any).cursor && cursorLedger((res as any).cursor) < latest && guard++ < 1000) {
       res = await server.getEvents({ filters, limit: 200, cursor: (res as any).cursor } as any);
       checkEvents(res.events);
     }

@@ -127,14 +127,19 @@ async function fetchOnChainCommitments(rpcUrl: string, poolId: string): Promise<
   let start: number;
   try {
     const latest = (await server.getLatestLedger()).sequence;
-    start = Math.max(latest - 16000, 1);
+    start = Math.max(latest - 100000, 1);
   } catch { return commitments; }
 
   const filters = [{ type: 'contract' as const, contractIds: [poolId], topics: [['*']] }];
 
-  try {
-    let res = await server.getEvents({ startLedger: start, filters, limit: 200 });
-    for (const e of res.events) {
+  // getEvents scans forward in bounded windows: short/empty pages still carry
+  // an advancing cursor, so paginate until it reaches latestLedger.
+  const cursorLedger = (c?: string): number => {
+    if (!c) return Number.MAX_SAFE_INTEGER;
+    try { return Number(BigInt(c.split('-')[0]) >> 32n); } catch { return Number.MAX_SAFE_INTEGER; }
+  };
+  const collect = (events: any[]) => {
+    for (const e of events) {
       try {
         const data: any = scValToNative(e.value);
         if (data?.out_commitment_0) {
@@ -143,17 +148,16 @@ async function fetchOnChainCommitments(rpcUrl: string, poolId: string): Promise<
         }
       } catch { /* skip */ }
     }
-    while (res.events.length === 200 && (res as any).cursor) {
+  };
+
+  try {
+    let res = await server.getEvents({ startLedger: start, filters, limit: 200 });
+    const latest = res.latestLedger;
+    collect(res.events);
+    let guard = 0;
+    while ((res as any).cursor && cursorLedger((res as any).cursor) < latest && guard++ < 1000) {
       res = await server.getEvents({ filters, limit: 200, cursor: (res as any).cursor } as any);
-      for (const e of res.events) {
-        try {
-          const data: any = scValToNative(e.value);
-          if (data?.out_commitment_0) {
-            commitments.add(bytesToBig(data.out_commitment_0).toString());
-            commitments.add(bytesToBig(data.out_commitment_1).toString());
-          }
-        } catch { /* skip */ }
-      }
+      collect(res.events);
     }
   } catch { /* network error — partial verification */ }
 
