@@ -173,12 +173,34 @@ export class SuitPool {
     const snarkjs = await import('snarkjs');
     onStep?.('Syncing pool tree from chain…');
 
-    const leaves = await this.syncer.sync(true);
+    let leaves = await this.syncer.sync(true);
+
+    // Completeness guard: the reconstructed tree must hold exactly the on-chain
+    // leaf set. The contract keeps only 30 historical roots and inserts 2 leaves
+    // per transact (~15 transactions deep), so a tree that's missing recent
+    // leaves yields a root that has aged out of history → UnknownRoot (#4) at
+    // submit. Detect the gap up front and re-sync once before wasting a proof.
+    const onchainCount = await this.getCount();
+    if (leaves.length !== onchainCount) {
+      this.syncer.invalidate();
+      leaves = await this.syncer.sync(true);
+      if (leaves.length !== onchainCount) {
+        throw new Error(
+          `Pool tree sync incomplete (${leaves.length}/${onchainCount} leaves) — the indexer is catching up. Retry in a few seconds.`,
+        );
+      }
+    }
+
     const commitment = BigInt(note.commitment);
     const leafIndex = leaves.findIndex(l => l === commitment);
     if (leafIndex < 0) throw new Error('Note not found in on-chain tree yet — wait for the deposit to index, then retry.');
 
     const root = treeRoot(leaves, this.depth);
+    if (!(await this.knownRoot(root))) {
+      throw new Error(
+        'Reconstructed pool root not recognized on-chain — local tree is stale. Retry in a moment; if it persists, the pool indexer is behind.',
+      );
+    }
     const path = treePath(leafIndex, leaves, this.depth);
 
     const priv = BigInt(note.privKey);
@@ -277,6 +299,20 @@ export class SuitPool {
   }
 
   // ── Internal helpers ──
+
+  /** Read-only check that a Merkle root is in the contract's root history. */
+  private async knownRoot(root: bigint): Promise<boolean> {
+    try {
+      const address = await this.config.signer.getAddress();
+      const contract = new Contract(this.config.poolId);
+      const account = await this.server.getAccount(address);
+      const tx = new TransactionBuilder(account, { fee: BASE_FEE, networkPassphrase: this.passphrase })
+        .addOperation(contract.call('known_root', scvBytes(be(root)))).setTimeout(30).build();
+      const sim = await this.server.simulateTransaction(tx);
+      if (rpc.Api.isSimulationError(sim) || !sim.result) return false;
+      return !!scValToNative(sim.result.retval);
+    } catch { return false; }
+  }
 
   private async callView(method: string): Promise<any> {
     const address = await this.config.signer.getAddress();

@@ -66,12 +66,26 @@ export class LeafSyncer {
       res = await this.server.getEvents({ startLedger: start, filters, limit: 200 });
     }
 
+    // Next cursor: prefer the response's paging token, but fall back to the
+    // last event's id — stellar-sdk v16 does not reliably surface a top-level
+    // `cursor`, and relying on it alone silently stops after the first window,
+    // dropping the newest deposits (→ stale tree → UnknownRoot on withdraw).
+    const nextCursor = (r: any): string | undefined => {
+      if (r?.cursor) return r.cursor;
+      const evs = r?.events;
+      return evs && evs.length ? evs[evs.length - 1].id : undefined;
+    };
+
     const latest = res.latestLedger;
     collect(res.events);
+    let cursor = nextCursor(res);
     let guard = 0;
-    while ((res as any).cursor && cursorLedger((res as any).cursor) < latest && guard++ < 1000) {
-      res = await this.server.getEvents({ filters, limit: 200, cursor: (res as any).cursor } as any);
+    while (cursor && cursorLedger(cursor) < latest && guard++ < 5000) {
+      res = await this.server.getEvents({ filters, limit: 200, cursor } as any);
       collect(res.events);
+      const nc = nextCursor(res);
+      if (!nc || nc === cursor) break; // no forward progress
+      cursor = nc;
     }
 
     this.saveCache(indexed);
