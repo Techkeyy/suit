@@ -5,12 +5,12 @@
 // The auditor can verify amounts against on-chain commitments but cannot
 // produce valid nullifiers — they can look, not touch.
 
-import { rpc, scValToNative } from '@stellar/stellar-sdk';
 import type {
   NoteStore, AuditEntry, AuditPackage, AuditReport,
   EncryptedAuditEntry, SuitPoolConfig,
 } from './types';
-import { toHex, fromHex, commitHash, amountToStroops, stroopsToAmount, bytesToBig } from './crypto';
+import { toHex, fromHex, commitHash, stroopsToAmount } from './crypto';
+import { LeafSyncer } from './sync';
 
 // ── AES-GCM encryption (Web Crypto, zero dependencies) ──
 
@@ -79,6 +79,7 @@ export async function verifyAuditPackage(
   viewingKeyHex: string,
   rpcUrl?: string,
   startLedger?: number,
+  knownCommitments?: Set<string>,
 ): Promise<AuditReport> {
   const key = fromHex(viewingKeyHex);
   const entries: (AuditEntry & { onChainVerified: boolean })[] = [];
@@ -88,14 +89,23 @@ export async function verifyAuditPackage(
   const url = rpcUrl ??
     (pkg.network === 'mainnet' ? 'https://mainnet.sorobanrpc.com' : 'https://soroban-testnet.stellar.org');
 
-  const onChainCommitments = await fetchOnChainCommitments(url, pkg.poolId, startLedger);
+  // Prefer a caller-supplied commitment set (the app injects its LeafSyncer's
+  // cached leaves, which include early deposits already pruned from RPC).
+  // Fall back to a fresh RPC scan for standalone third-party auditors.
+  const onChainCommitments = knownCommitments ??
+    await fetchOnChainCommitments(url, pkg.poolId, startLedger);
 
   for (const enc of pkg.entries) {
     let parsed: AuditEntry;
     try {
       parsed = JSON.parse(await decrypt(enc, key));
     } catch {
-      return { valid: false, entries: [], totalShielded: '0', totalWithdrawn: '0', netBalance: '0' };
+      // The viewing key can't decrypt this package — wrong key, not a chain
+      // mismatch. Report that distinctly so the UI doesn't blame commitments.
+      return {
+        valid: false, entries: [], totalShielded: '0', totalWithdrawn: '0',
+        netBalance: '0', error: 'decrypt_failed',
+      };
     }
 
     const amt = BigInt(parsed.amount);
@@ -112,58 +122,27 @@ export async function verifyAuditPackage(
   }
 
   const decimals = 7;
+  const valid = entries.length > 0 && entries.every(e => e.onChainVerified);
   return {
-    valid: entries.every(e => e.onChainVerified),
+    valid,
     entries,
     totalShielded: stroopsToAmount(totalIn, decimals),
     totalWithdrawn: stroopsToAmount(totalOut, decimals),
     netBalance: stroopsToAmount(totalIn - totalOut, decimals),
+    ...(valid ? {} : { error: 'unmatched' as const }),
   };
 }
 
+// Reuse the LeafSyncer — it already scans the full RPC retention window
+// (parsing the floor from the range error) and paginates correctly via the
+// last-event-id cursor fallback. A bespoke scan here would re-introduce the
+// narrow-window / dropped-cursor bug that caused UnknownRoot on withdraw.
 async function fetchOnChainCommitments(rpcUrl: string, poolId: string, startLedger?: number): Promise<Set<string>> {
-  const server = new rpc.Server(rpcUrl);
   const commitments = new Set<string>();
-
-  const filters = [{ type: 'contract' as const, contractIds: [poolId], topics: [['*']] }];
-
-  const cursorLedger = (c?: string): number => {
-    if (!c) return Number.MAX_SAFE_INTEGER;
-    try { return Number(BigInt(c.split('-')[0]) >> 32n); } catch { return Number.MAX_SAFE_INTEGER; }
-  };
-  const collect = (events: any[]) => {
-    for (const e of events) {
-      try {
-        const data: any = scValToNative(e.value);
-        if (data?.out_commitment_0) {
-          commitments.add(bytesToBig(data.out_commitment_0).toString());
-          commitments.add(bytesToBig(data.out_commitment_1).toString());
-        }
-      } catch { /* skip */ }
-    }
-  };
-
   try {
-    let res: Awaited<ReturnType<rpc.Server['getEvents']>>;
-    if (startLedger) {
-      try {
-        res = await server.getEvents({ startLedger, filters, limit: 200 });
-      } catch {
-        const latest = (await server.getLatestLedger()).sequence;
-        res = await server.getEvents({ startLedger: Math.max(latest - 17000, 1), filters, limit: 200 });
-      }
-    } else {
-      const latest = (await server.getLatestLedger()).sequence;
-      res = await server.getEvents({ startLedger: Math.max(latest - 17000, 1), filters, limit: 200 });
-    }
-    const latest = res.latestLedger;
-    collect(res.events);
-    let guard = 0;
-    while ((res as any).cursor && cursorLedger((res as any).cursor) < latest && guard++ < 1000) {
-      res = await server.getEvents({ filters, limit: 200, cursor: (res as any).cursor } as any);
-      collect(res.events);
-    }
+    const syncer = new LeafSyncer({ rpcUrl, poolId, startLedger: startLedger ?? 1 });
+    const leaves = await syncer.sync(true);
+    for (const l of leaves) if (l !== 0n) commitments.add(l.toString());
   } catch { /* network error — partial verification */ }
-
   return commitments;
 }

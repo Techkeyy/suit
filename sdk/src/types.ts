@@ -118,6 +118,10 @@ export interface AuditReport {
   totalShielded: string;
   totalWithdrawn: string;
   netBalance: string;
+  /** Why verification failed, when it did. Absent on success.
+   *  'decrypt_failed' → wrong viewing key for this package;
+   *  'unmatched'      → decrypted, but some commitments weren't found on-chain. */
+  error?: 'decrypt_failed' | 'unmatched';
 }
 
 // ── Compliance receipts ──

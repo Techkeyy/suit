@@ -301,8 +301,12 @@ export function exportAuditPackage(): AuditPackage {
 }
 
 /** Decrypt + verify an audit package against the chain. Static — anyone with the key can run it. */
-export function verifyAuditPackage(pkg: AuditPackage, viewingKeyHex: string): Promise<AuditReport> {
-  return _verifyAuditPackage(pkg, viewingKeyHex, CONFIG.rpcUrl, getActiveToken().startLedger);
+export async function verifyAuditPackage(pkg: AuditPackage, viewingKeyHex: string): Promise<AuditReport> {
+  // Feed the syncer's leaf set (backed by the localStorage cache) so early
+  // deposits pruned from RPC still match — mirrors verifyReceipt below.
+  const leaves = await getPool().syncLeaves();
+  const knownCommitments = new Set(leaves.map(l => l.toString()));
+  return _verifyAuditPackage(pkg, viewingKeyHex, CONFIG.rpcUrl, getActiveToken().startLedger, knownCommitments);
 }
 
 /** Generate a compliance receipt linking a spent note to its withdrawal. */

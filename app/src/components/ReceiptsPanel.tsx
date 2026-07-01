@@ -66,7 +66,13 @@ export default function ReceiptsPanel() {
       if (!key) { setVkBusy(false); return; }
       const report = await verifyAuditPackage(pkg, key.trim());
       setAuditReport(report);
-      setVkMsg(report.valid ? 'Audit package verified against the chain.' : 'Verification incomplete — some entries did not match on-chain commitments.');
+      if (report.valid) {
+        setVkMsg('Audit package verified against the chain.');
+      } else if (report.error === 'decrypt_failed') {
+        setVkMsg('Wrong viewing key for this package — nothing could be decrypted. Copy the viewing key from the same pool/device that exported it, then retry.');
+      } else {
+        setVkMsg('Verification incomplete — some entries did not match on-chain commitments.');
+      }
     } catch (e: any) {
       setVkMsg(`Could not verify: ${e?.message || e}`);
     } finally { setVkBusy(false); }

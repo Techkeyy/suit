@@ -12,8 +12,9 @@ import {
 import type { ComplianceReceipt, ReceiptVerification, UTXONote } from './types';
 import {
   pubKeyOf, commitHash, signHash, nullHash,
-  stroopsToAmount, bytesToBig, be,
+  stroopsToAmount, be,
 } from './crypto';
+import { LeafSyncer } from './sync';
 
 function computeNullifier(note: UTXONote, leafIndex: number): bigint {
   const priv = BigInt(note.privKey);
@@ -137,46 +138,15 @@ export async function verifyReceipt(
     const server = new rpc.Server(url);
 
     if (!knownCommitments) {
-      const filters = [{ type: 'contract' as const, contractIds: [receipt.poolId], topics: [['*']] }];
-      const checkEvents = (events: any[]) => {
-        for (const e of events) {
-          try {
-            const data: any = scValToNative(e.value);
-            if (data?.out_commitment_0) {
-              const c0 = bytesToBig(data.out_commitment_0).toString();
-              const c1 = bytesToBig(data.out_commitment_1).toString();
-              if (c0 === receipt.deposit.commitment || c1 === receipt.deposit.commitment) {
-                commitmentOnChain = true;
-              }
-            }
-          } catch { /* skip */ }
-        }
-      };
-
-      const cursorLedger = (c?: string): number => {
-        if (!c) return Number.MAX_SAFE_INTEGER;
-        try { return Number(BigInt(c.split('-')[0]) >> 32n); } catch { return Number.MAX_SAFE_INTEGER; }
-      };
-
-      let res: Awaited<ReturnType<rpc.Server['getEvents']>>;
-      if (startLedger) {
-        try {
-          res = await server.getEvents({ startLedger, filters, limit: 200 });
-        } catch {
-          const latestSeq = (await server.getLatestLedger()).sequence;
-          res = await server.getEvents({ startLedger: Math.max(latestSeq - 17000, 1), filters, limit: 200 });
-        }
-      } else {
-        const latestSeq = (await server.getLatestLedger()).sequence;
-        res = await server.getEvents({ startLedger: Math.max(latestSeq - 17000, 1), filters, limit: 200 });
-      }
-      const latest = res.latestLedger;
-      checkEvents(res.events);
-      let guard = 0;
-      while ((res as any).cursor && cursorLedger((res as any).cursor) < latest && guard++ < 1000) {
-        res = await server.getEvents({ filters, limit: 200, cursor: (res as any).cursor } as any);
-        checkEvents(res.events);
-      }
+      // Standalone path (no caller-supplied set): reuse the LeafSyncer so we
+      // get the full retention-window scan + correct cursor pagination instead
+      // of a narrow, prematurely-terminating bespoke scan.
+      try {
+        const syncer = new LeafSyncer({ rpcUrl: url, poolId: receipt.poolId, startLedger: startLedger ?? 1 });
+        const leaves = await syncer.sync(true);
+        const target = receipt.deposit.commitment;
+        commitmentOnChain = leaves.some(l => l.toString() === target);
+      } catch { /* network error — partial verification */ }
     }
 
     if (receipt.withdrawal.nullifier) {
