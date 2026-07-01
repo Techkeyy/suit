@@ -55,16 +55,30 @@ export class LeafSyncer {
 
     // Start from the pool's deploy ledger so every deposit is recoverable.
     // If that ledger has aged out of the RPC's event-retention window the
-    // call rejects — fall back to the newest safe window (older leaves are
-    // then served from the persisted LeafCache).
-    let res: Awaited<ReturnType<rpc.Server['getEvents']>>;
-    try {
-      res = await this.server.getEvents({ startLedger: this.config.startLedger, filters, limit: 200 });
-    } catch {
-      const latest = (await this.server.getLatestLedger()).sequence;
-      const start = Math.max(latest - 17000, 1);
-      res = await this.server.getEvents({ startLedger: start, filters, limit: 200 });
+    // call rejects with the current valid range, e.g.
+    //   "startLedger must be within the ledger range: 3258853 - 3379812".
+    // Scan from that retention FLOOR — not a fixed `latest - N` guess — so we
+    // recover every event the RPC still holds. The floor advances by one every
+    // ledger (~5 s), so the exact value from one error can already be stale by
+    // the retry; re-parse and retry a few times, with a small safety margin.
+    let res: Awaited<ReturnType<rpc.Server['getEvents']>> | undefined;
+    let start = this.config.startLedger;
+    for (let attempt = 0; attempt < 4; attempt++) {
+      try {
+        res = await this.server.getEvents({ startLedger: start, filters, limit: 200 });
+        break;
+      } catch (e: any) {
+        const m = String(e?.message || e).match(/ledger range:\s*(\d+)\s*-\s*(\d+)/);
+        if (!m) {
+          const latest = (await this.server.getLatestLedger()).sequence;
+          start = Math.max(latest - 100000, 1);
+        } else {
+          // +5 ledgers of headroom so the floor can't advance past us mid-flight
+          start = Number(m[1]) + 5;
+        }
+      }
     }
+    if (!res) throw new Error('LeafSyncer: could not open an event window within RPC retention');
 
     // Next cursor: prefer the response's paging token, but fall back to the
     // last event's id — stellar-sdk v16 does not reliably surface a top-level
