@@ -10,8 +10,14 @@ function download(filename: string, data: unknown) {
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  a.href = url; a.download = filename; a.click();
-  URL.revokeObjectURL(url);
+  a.href = url; a.download = filename;
+  // The anchor must be in the DOM for a click-triggered download to fire
+  // reliably, and the blob URL must outlive the click — revoking it in the
+  // same tick can abort the download silently (no file, no error).
+  a.style.display = 'none';
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 1000);
 }
 
 const card: React.CSSProperties = {
